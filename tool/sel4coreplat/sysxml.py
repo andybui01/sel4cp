@@ -91,6 +91,7 @@ class ProtectionDomain:
     maps: Tuple[SysMap, ...]
     irqs: Tuple[SysIrq, ...]
     setvars: Tuple[SysSetVar, ...]
+    child_pds: Tuple["ProtectionDomain", ...]
     element: ET.Element
 
 
@@ -118,6 +119,13 @@ class Channel:
     id_b: int
     element: ET.Element
 
+
+def _pd_flatten(pds: Iterable[ProtectionDomain]) -> Tuple[ProtectionDomain, ...]:
+    """Given an iterable of protection domains flatten the tree representation
+    into a flat tuple."""
+    return tuple(pds) + sum((_pd_flatten(pd.child_pds) for pd in pds), ())
+
+
 class SystemDescription:
     def __init__(
         self,
@@ -127,7 +135,7 @@ class SystemDescription:
         partitions: Iterable[Partition]
     ) -> None:
         self.memory_regions = tuple(memory_regions)
-        self.protection_domains = tuple(protection_domains)
+        self.protection_domains = _pd_flatten(protection_domains)
         self.channels = tuple(channels)
         self.partitions = tuple(partitions)
 
@@ -239,8 +247,10 @@ def xml2mr(mr_xml: ET.Element, plat_desc: PlatformDescription) -> SysMemoryRegio
     return SysMemoryRegion(name, size, page_size, page_count, paddr)
 
 
-def xml2pd(pd_xml: ET.Element) -> ProtectionDomain:
-    _check_attrs(pd_xml, ("name", "priority", "pp", "budget", "period", "passive"))
+def xml2pd(pd_xml: ET.Element, is_child: bool=False) -> ProtectionDomain:
+    root_attrs = ("name", "priority", "pp", "budget", "period", "passive")
+    child_attrs = root_attrs + ("channel_id", )
+    _check_attrs(pd_xml, child_attrs if is_child else root_attrs)
     program_image: Optional[Path] = None
     name = checked_lookup(pd_xml, "name")
     priority = int(pd_xml.attrib.get("priority", "0"), base=0)
@@ -259,6 +269,7 @@ def xml2pd(pd_xml: ET.Element) -> ProtectionDomain:
     maps = []
     irqs = []
     setvars = []
+    child_pds = []
     for child in pd_xml:
         try:
             if child.tag == "program_image":
@@ -295,6 +306,8 @@ def xml2pd(pd_xml: ET.Element) -> ProtectionDomain:
                 symbol = checked_lookup(child, "symbol")
                 region_paddr = checked_lookup(child, "region_paddr")
                 setvars.append(SysSetVar(symbol, region_paddr=region_paddr))
+            elif child.tag == "protection_domain":
+                child_pds.append(xml2pd(child, is_child=True))
             else:
                 raise UserError(f"Invalid XML element '{child.tag}': {child._loc_str}")  # type: ignore
         except ValueError as e:
@@ -303,7 +316,20 @@ def xml2pd(pd_xml: ET.Element) -> ProtectionDomain:
     if program_image is None:
         raise ValueError("program_image must be specified")
 
-    return ProtectionDomain(name, priority, budget, period, pp, passive, program_image, tuple(maps), tuple(irqs), tuple(setvars), pd_xml)
+    return ProtectionDomain(
+        name,
+        priority,
+        budget,
+        period,
+        pp,
+        passive,
+        program_image,
+        tuple(maps),
+        tuple(irqs),
+        tuple(setvars),
+        tuple(child_pds),
+        pd_xml
+    )
 
 
 def xml2channel(ch_xml: ET.Element) -> Channel:
