@@ -96,6 +96,10 @@ class ProtectionDomain:
     parent: Optional["ProtectionDomain"]
     element: ET.Element
 
+    @property
+    def needs_ep(self) -> bool:
+        return self.pp or self.parent is None
+
 
 @dataclass(frozen=True, eq=True)
 class Partition:
@@ -282,10 +286,10 @@ def xml2pd(pd_xml: ET.Element, is_child: bool=False) -> ProtectionDomain:
     pd_id = None
     if is_child:
         pd_id = int(checked_lookup(pd_xml, "pd_id"), base=0)
-        if pd_id < 0 or pd_id > 255:
-            raise ValueError("pd_id must be between 0 and 255")
+        if pd_id <= 0 or pd_id > 255:
+            raise ValueError("pd_id must be between 1 and 255")
     else:
-        pd_id = None
+        pd_id = 0
 
     if budget > period:
         raise ValueError(f"budget ({budget}) must be less than, or equal to, period ({period})")
