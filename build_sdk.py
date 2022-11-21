@@ -47,17 +47,16 @@ class ConfigInfo:
 
 SUPPORTED_BOARDS = (
     BoardInfo(
-        name="zcu102",
+        name="qemu_arm_virt",
         gcc_cpu="cortex-a53",
-        loader_link_address=0x40000000,
+        loader_link_address=0x70000000,
         kernel_options = {
-            "KernelPlatform": "zynqmp",
-            "KernelARMPlatform": "zcu102",
+            "KernelPlatform": "qemu-arm-virt",
             "KernelIsMCS": True,
             "KernelArmExportPCNTUser": True,
         },
         examples = {
-            "hello": Path("example/zcu102/hello_world")
+            "hello_world": Path("example/qemu-arm-virt/hello_world")
         }
     ),
 )
