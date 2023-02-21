@@ -777,6 +777,12 @@ def _rootserver_max_size_bits() -> int:
     return max(cnode_size_bits, vspace_bits)
 
 
+def calculate_kernel_virtual_base(kernel_config: KernelConfig) -> int:
+    # for future hyp support?
+        # return 2 ** 48 - 2 ** 39
+    return 2 ** 64 - 2 ** 39
+
+
 def _kernel_partial_boot(
         kernel_config: KernelConfig,
         kernel_elf: ElfFile) -> _KernelPartialBootInfo:
@@ -874,8 +880,16 @@ def emulate_kernel_boot(
     first_untyped_cap = fixed_cap_count + paging_cap_count + sched_control_cap_count + page_cap_count
     schedcontrol_cap = fixed_cap_count + paging_cap_count
 
-    device_regions = reserved_region.aligned_power_of_two_regions() + device_memory.aligned_power_of_two_regions()
-    normal_regions = boot_region.aligned_power_of_two_regions() + normal_memory.aligned_power_of_two_regions()
+    # Determining seL4_MaxUntypedBits, for now only aarch64 is supported so there is only one value
+    max_bits = 47
+
+    # Cacluate the base address for kernel virtual memory, this is required
+    # for computing the aligned regions
+    kernel_virtual_base = calculate_kernel_virtual_base(kernel_config)
+    device_regions = reserved_region.aligned_power_of_two_regions(kernel_virtual_base, max_bits) \
+                        + device_memory.aligned_power_of_two_regions(kernel_virtual_base, max_bits)
+    normal_regions = boot_region.aligned_power_of_two_regions(kernel_virtual_base, max_bits) \
+                        + normal_memory.aligned_power_of_two_regions(kernel_virtual_base, max_bits)
     untyped_objects = []
     for cap, r in enumerate(device_regions, first_untyped_cap):
         untyped_objects.append(UntypedObject(cap, r, True))
