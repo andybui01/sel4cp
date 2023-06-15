@@ -4,8 +4,8 @@
 
  SPDX-License-Identifier: BSD-2-Clause
 -->
-<system>
-    <protection_domain name="hello" priority="254">
-        <program_image path="hello.elf" />
+<partition>
+    <protection_domain name="world" priority="254">
+        <program_image path="world.elf" />
     </protection_domain>
-</system>
+</partition>

@@ -9,7 +9,7 @@
 void
 init(void)
 {
-    sel4cp_dbg_puts("hello, world\n");
+    sel4cp_dbg_puts("hello\n");
 }
 
 void
