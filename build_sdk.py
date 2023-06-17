@@ -47,19 +47,6 @@ class ConfigInfo:
 
 SUPPORTED_BOARDS = (
     BoardInfo(
-        name="tqma8xqp1gb",
-        gcc_cpu="cortex-a35",
-        loader_link_address=0x80280000,
-        kernel_options = {
-            "KernelPlatform": "tqma8xqp1gb",
-            "KernelIsMCS": True,
-            "KernelArmExportPCNTUser": True,
-        },
-        examples = {
-            "ethernet": Path("example/tqma8xqp1gb/ethernet")
-        }
-    ),
-    BoardInfo(
         name="zcu102",
         gcc_cpu="cortex-a53",
         loader_link_address=0x40000000,
@@ -70,22 +57,9 @@ SUPPORTED_BOARDS = (
             "KernelArmExportPCNTUser": True,
         },
         examples = {
-            "hello": Path("example/zcu102/hello")
+            "hello": Path("example/zcu102/hello_world")
         }
     ),
-    # BoardInfo(
-    #     name="imx8mm",
-    #     gcc_cpu="cortex-a53",
-    #     loader_link_address=0x41000000,
-    #     kernel_options = {
-    #         "KernelPlatform": "imx8mm-evk",
-    #         "KernelIsMCS": True,
-    #         "KernelArmExportPCNTUser": True,
-    #     },
-    #     examples = {
-    #         "passive_server": Path("example/imx8mm/passive_server")
-    #     }
-    # )
 )
 
 SUPPORTED_CONFIGS = (
