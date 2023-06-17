@@ -93,6 +93,7 @@ def main():
         make_env["SEL4CP_TOOL"] = f"{executable} -m sel4coreplat"
 
     cmd = ["make", "-C", makefile_directory]
+    # cmd = ["make", "-n", "-C", makefile_directory] # dry run
 
     run(cmd, env=make_env)
 
