@@ -37,6 +37,6 @@ all: images hello_world.system
 	$(SEL4CP_TOOL) hello_world.system --search-path $(BUILD_DIR) --board $(SEL4CP_BOARD) --config $(SEL4CP_CONFIG)
 
 images:
-	mkdir $(addprefix $(BUILD_DIR)/, $(PARTITIONS))
+	mkdir -p $(addprefix $(BUILD_DIR)/, $(PARTITIONS))
 	$(MAKE) -C hello
 	$(MAKE) -C world

@@ -5,6 +5,17 @@
  SPDX-License-Identifier: BSD-2-Clause
 -->
 <system>
-    <partition path="hello/hello.partition" length="1"/>
-    <partition path="world/world.partition" length="1"/>
+
+    <partition name="hello" length="1">
+        <protection_domain name="hello" priority="254">
+            <program_image path="hello.elf" />
+        </protection_domain>
+    </partition>
+
+    <partition name="world" length="1">
+        <protection_domain name="world" priority="254">
+            <program_image path="world.elf" />
+        </protection_domain>
+    </partition>
+
 </system>

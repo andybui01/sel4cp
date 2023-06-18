@@ -95,6 +95,13 @@ class ProtectionDomain:
 
 
 @dataclass(frozen=True, eq=True)
+class Partition:
+    name: str
+    length: int
+    protection_domains: Tuple[ProtectionDomain, ...]
+
+
+@dataclass(frozen=True, eq=True)
 class SysMemoryRegion:
     name: str
     size: int
@@ -116,34 +123,52 @@ class SystemDescription:
         self,
         memory_regions: Iterable[SysMemoryRegion],
         protection_domains: Iterable[ProtectionDomain],
-        channels: Iterable[Channel]
+        channels: Iterable[Channel],
+        partitions: Iterable[Partition]
     ) -> None:
         self.memory_regions = tuple(memory_regions)
         self.protection_domains = tuple(protection_domains)
         self.channels = tuple(channels)
+        self.partitions = tuple(partitions)
 
         # Note: These could be dict comprehensions, but
         # we want to perform duplicate checks as we
         # build the data structure
+        # FIXME: @andyb: pd names remain GLOBAL, not sure if this is the right approach
         self.pd_by_name: Dict[str, ProtectionDomain] = {}
         self.mr_by_name: Dict[str, SysMemoryRegion] = {}
+        self.pt_by_name: Dict[str, Partition] = {}
 
-        # Ensure there is at least one protection domain
-        if len(self.protection_domains) == 0:
-            raise UserError("At least one protection domain must be defined")
-
-        if len(self.protection_domains) > 63:
-            raise UserError(f"Too many protection domains ({len(self.protection_domains)}) defined. Maximum is 63.")
-
-        for pd in protection_domains:
-            if pd.name in self.pd_by_name:
-                raise UserError(f"Duplicate protection domain name '{pd.name}'.")
-            self.pd_by_name[pd.name] = pd
-
+        # Ensure there is at least one protection domain or one partition
+        if len(self.protection_domains) == 0 and len(self.partitions) == 0:
+            raise UserError("At least one protection domain or partition must be defined")
+        
         for mr in memory_regions:
             if mr.name in self.mr_by_name:
                 raise UserError(f"Duplicate memory region name '{mr.name}'.")
             self.mr_by_name[mr.name] = mr
+
+        # FIXME: @andyb: account for protection domains only case, this assumes partitions,
+        # but we will eventually handle the pd-only case (probably by making a fake partition)
+        assert(len(self.protection_domains) == 0)
+        for pt in partitions:
+            if len(pt.protection_domains) > 63:
+                raise UserError(f"Too many protection domains ({len(self.protection_domains)}) defined. Maximum is 63.")
+
+            for pd in pt.protection_domains:
+                if pd.name in self.pd_by_name:
+                    raise UserError(f"Duplicate protection domain name '{pd.name}'.")
+                self.pd_by_name[pd.name] = pd
+
+                # Ensure that all maps are correct
+                for map in pd.maps:
+                    if map.mr not in self.mr_by_name:
+                        raise UserError(f"Invalid memory region name '{map.mr}' on '{map.element.tag}' @ {map.element._loc_str}")  # type: ignore
+
+                    mr = self.mr_by_name[map.mr]
+                    extra = map.vaddr % mr.page_size
+                    if extra != 0:
+                        raise UserError(f"Invalid vaddr alignment on '{map.element.tag}' @ {map.element._loc_str}")  # type: ignore
 
         # Ensure all CCs make senses
         for cc in self.channels:
@@ -178,18 +203,6 @@ class SystemDescription:
 
             ch_ids[cc.pd_a].add(cc.id_a)
             ch_ids[cc.pd_b].add(cc.id_b)
-
-        # Ensure that all maps are correct
-        for pd in self.protection_domains:
-            for map in pd.maps:
-                if map.mr not in self.mr_by_name:
-                    raise UserError(f"Invalid memory region name '{map.mr}' on '{map.element.tag}' @ {map.element._loc_str}")  # type: ignore
-
-                mr = self.mr_by_name[map.mr]
-                extra = map.vaddr % mr.page_size
-                if extra != 0:
-                    raise UserError(f"Invalid vaddr alignment on '{map.element.tag}' @ {map.element._loc_str}")  # type: ignore
-
 
         # Note: Overlapping memory is checked in the build.
 
@@ -315,6 +328,28 @@ def xml2channel(ch_xml: ET.Element) -> Channel:
     return Channel(ends[0][0], ends[0][1], ends[1][0], ends[1][1], ch_xml)
 
 
+def xml2partition(pt_xml: ET.Element) -> Partition:
+
+    _check_attrs(pt_xml, ("name", "length"))
+    name = checked_lookup(pt_xml, "name")
+    length = int(pt_xml.attrib.get("length"), base=0)
+    protection_domains = []
+
+    # FIXME @andyb: this is temporary until we can determine sane lengths to set for domains
+    if length < 0 or length > 254:
+        raise ValueError("length must be between 0 and 254")
+    
+    for child in pt_xml:
+        try:
+            if child.tag == "protection_domain":
+                protection_domains.append(xml2pd(child))
+            else:
+                raise UserError(f"Invalid XML element '{child.tag}': {child._loc_str}")  # type: ignore
+        except ValueError as e:
+            raise UserError(f"Error: {e} on element '{child.tag}': {child._loc_str}")  # type: ignore
+
+    return Partition(name, length, tuple(protection_domains))
+
 
 def _check_no_text(el: ET.Element) -> None:
     if not (el.text is None or el.text.strip() == ""):
@@ -336,6 +371,7 @@ def xml2system(filename: Path, plat_desc: PlatformDescription) -> SystemDescript
     memory_regions = []
     protection_domains = []
     channels = []
+    partitions = []
 
     # Ensure there is no non-whitespace text
     _check_no_text(root)
@@ -348,15 +384,21 @@ def xml2system(filename: Path, plat_desc: PlatformDescription) -> SystemDescript
                 protection_domains.append(xml2pd(child))
             elif child.tag == "channel":
                 channels.append(xml2channel(child))
+            elif child.tag == "partition":
+                partitions.append(xml2partition(child))
             else:
                 raise UserError(f"Invalid XML element '{child.tag}': {child._loc_str}")  # type: ignore
         except ValueError as e:
             raise UserError(f"Error: {e} on element '{child.tag}': {child._loc_str}")  # type: ignore
         except MissingAttribute as e:
             raise UserError(f"Error: Missing required attribute '{e.attribute_name}' on element '{e.element.tag}': {e.element._loc_str}")  # type: ignore
+    
+    if len(protection_domains) and len(partitions):
+        raise UserError("Error: top level system must only contain either partitions or protection_domains")
 
     return SystemDescription(
         memory_regions=memory_regions,
         protection_domains=protection_domains,
         channels=channels,
+        partitions=partitions,
     )
