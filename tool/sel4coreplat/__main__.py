@@ -1054,7 +1054,7 @@ def build_system(
         mr_pages[mr] = [page_objects[mr.page_size][i] for i in range(idx, idx + mr.page_count)]
         pg_idx[mr.page_size] += mr.page_count
 
-    # 3.2 Now allocate all the fixed mRs
+    # 3.2 Now allocate all the fixed MRs
 
     # First we need to find all the requested pages and sorted them
     fixed_pages = []
