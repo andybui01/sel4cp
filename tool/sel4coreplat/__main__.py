@@ -96,6 +96,7 @@ from sel4coreplat.sel4 import (
     INIT_VSPACE_CAP_ADDRESS,
     INIT_ASID_POOL_CAP_ADDRESS,
     IRQ_CONTROL_CAP_ADDRESS,
+    DOMAIN_CAP_ADDRESS,
     SEL4_RIGHTS_ALL,
     SEL4_RIGHTS_READ,
     SEL4_RIGHTS_WRITE,
@@ -435,7 +436,7 @@ class InitSystem:
         self._cnode_cap = cnode_cap
         self._cnode_mask = cnode_mask
         self._kernel_config = kernel_config
-        self._kao = kernel_object_allocator
+        self._koa = kernel_object_allocator
         self._invocations = invocations
         self._cap_slot = first_available_cap_slot
         self._last_fixed_address = 0
@@ -547,7 +548,7 @@ class InitSystem:
             alloc_size = size * SLOT_SIZE
         else:
             raise Exception(f"Invalid object type: {object_type}")
-        allocation = self._kao.alloc(alloc_size, count)
+        allocation = self._koa.alloc(alloc_size, count)
         base_cap_slot = self._cap_slot
         self._cap_slot += count
         to_alloc = count
@@ -642,6 +643,7 @@ def build_system(
     cap_address_names[INIT_VSPACE_CAP_ADDRESS] = "VSpace: init"
     cap_address_names[INIT_ASID_POOL_CAP_ADDRESS] = "ASID Pool: init"
     cap_address_names[IRQ_CONTROL_CAP_ADDRESS] = "IRQ Control"
+    cap_address_names[DOMAIN_CAP_ADDRESS] = "Domain"
 
     system_cnode_bits = int(log2(system_cnode_size))
 
@@ -744,7 +746,7 @@ def build_system(
         cap_address_names[ut.cap] = f"Untyped @ 0x{ut.region.base:x}:0x{ut.region.size:x}{dev_str}"
 
     # X. The kernel boot info allows us to create an allocator for kernel objects
-    kao = KernelObjectAllocator(kernel_boot_info)
+    koa = KernelObjectAllocator(kernel_boot_info)
 
     # 2. Now that the available resources are known it is possible to proceed with the
     # monitor task boot strap.
@@ -782,13 +784,13 @@ def build_system(
     #  slot 0: the existing init cnode
     #  slot 1: our main system cnode
     root_cnode_bits = 1
-    root_cnode_allocation = kao.alloc((1 << root_cnode_bits) * (1 << SLOT_BITS))
+    root_cnode_allocation = koa.alloc((1 << root_cnode_bits) * (1 << SLOT_BITS))
     root_cnode_cap =  kernel_boot_info.first_available_cap
     cap_address_names[root_cnode_cap] = "CNode: root"
 
     # 2.1.2: Allocate the *system* CNode. It is the cnodes that
     # will have enough slots for all required caps.
-    system_cnode_allocation = kao.alloc(system_cnode_size * (1 << SLOT_BITS))
+    system_cnode_allocation = koa.alloc(system_cnode_size * (1 << SLOT_BITS))
     system_cnode_cap = kernel_boot_info.first_available_cap + 1
     cap_address_names[system_cnode_cap] = "CNode: system"
 
@@ -809,12 +811,12 @@ def build_system(
             1
     ))
 
-    # 2.1.4: Now insert a cap to the initial Cnode into slot zero of the newly
-    # allocated root Cnode. It uses sufficient guard bits to ensure it is
+    # 2.1.4: Now insert a cap to the initial CNode into slot zero of the newly
+    # allocated root CNode. It uses sufficient guard bits to ensure it is
     # completed padded to word size
     #
     # guard size is the lower bit of the guard, upper bits are the guard itself
-    # which for out purposes is always zero.
+    # which for our purposes is always zero.
     guard = kernel_config.cap_address_bits - root_cnode_bits - kernel_config.init_cnode_bits
     bootstrap_invocations.append(Sel4CnodeMint(
         root_cnode_cap,
@@ -827,8 +829,8 @@ def build_system(
         guard
     ))
 
-    # 2.1.5: Now it is possible to switch our root Cnode to the newly create
-    # root cnode. We have a zero sized guard. This Cnode represents the top
+    # 2.1.5: Now it is possible to switch our root CNode to the newly created
+    # root cnode. We have a zero sized guard. This CNode represents the top
     # bit of any cap addresses.
     #
     root_guard = 0
@@ -841,7 +843,7 @@ def build_system(
         0
     ))
 
-    # 2.1.6: Now we can create our new system Cnode. We will place it into
+    # 2.1.6: Now we can create our new system CNode. We will place it into
     # a temporary cap slot in the initial CNode to start with.
     bootstrap_invocations.append(Sel4UntypedRetype(
         system_cnode_allocation.untyped_cap_address,
@@ -854,7 +856,7 @@ def build_system(
         1
     ))
 
-    # 2.1.7: Now that the we have create the object, we can 'mutate' it
+    # 2.1.7: Now that we have created the object, we can 'mutate' it
     # to the correct place:
     # Slot #1 of the new root cnode
     guard = kernel_config.cap_address_bits - root_cnode_bits - system_cnode_bits
@@ -930,7 +932,7 @@ def build_system(
     #
     # Before mapping it is necessary to install page tables that can cover the region.
     page_tables_required = round_up(invocation_table_size, SEL4_LARGE_PAGE_SIZE) // SEL4_LARGE_PAGE_SIZE
-    page_table_allocation = kao.alloc(SEL4_PAGE_TABLE_SIZE, page_tables_required)
+    page_table_allocation = koa.alloc(SEL4_PAGE_TABLE_SIZE, page_tables_required)
     base_page_table_cap = cap_slot
 
     for pta in range(base_page_table_cap, base_page_table_cap + page_tables_required):
@@ -1018,7 +1020,7 @@ def build_system(
     all_mr_by_name = {mr.name: mr for mr in all_mrs}
 
     system_invocations: List[Sel4Invocation] = []
-    init_system = InitSystem(kernel_config, root_cnode_cap, system_cap_address_mask, cap_slot, kao, kernel_boot_info, system_invocations, cap_address_names)
+    init_system = InitSystem(kernel_config, root_cnode_cap, system_cap_address_mask, cap_slot, koa, kernel_boot_info, system_invocations, cap_address_names)
     init_system.reserve(invocation_table_allocations)
 
     SUPPORTED_PAGE_SIZES = (0x1_000, 0x200_000)
