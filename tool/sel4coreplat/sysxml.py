@@ -388,7 +388,7 @@ def xml2system(filename: Path, plat_desc: PlatformDescription) -> SystemDescript
                 partitions.append(pt)
 
                 # just add all of the PDs under the partition into the list
-                protection_domains.append(pt.protection_domains)
+                protection_domains += pt.protection_domains
             else:
                 raise UserError(f"Invalid XML element '{child.tag}': {child._loc_str}")  # type: ignore
         except ValueError as e:

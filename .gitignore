@@ -5,4 +5,5 @@ env/
 pyenv/
 release/
 tmp_build/
-
+example/**/loader.img
+example/**/report.txt
