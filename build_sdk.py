@@ -348,6 +348,7 @@ def main() -> None:
                 ("LINK_ADDRESS", hex(board.loader_link_address))
             ]
             build_elf_component("loader", root_dir, build_dir, board, config, loader_defines)
+            build_elf_component("sysinit", root_dir, build_dir, board, config, [])
             build_elf_component("monitor", root_dir, build_dir, board, config, [])
             build_lib_component("libsel4cp", root_dir, build_dir, board, config)
         # Setup the examples

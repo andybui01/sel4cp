@@ -126,7 +126,7 @@ default_platform_description = PlatformDescription(
 )
 
 @dataclass
-class MonitorConfig:
+class SysinitConfig:
     untyped_info_symbol_name: str
     untyped_info_header_struct: Struct
     untyped_info_object_struct: Struct
@@ -137,13 +137,13 @@ class MonitorConfig:
     def max_untyped_objects(self, symbol_size: int) -> int:
         return (symbol_size - self.untyped_info_header_struct.size) // self.untyped_info_object_struct.size
 
-# The monitor config is fixed (unless the monitor C code
+# The sysinit config is fixed (unless the sysinit C code
 # changes the definitions of struct, or the name.
 # While this is fixed, we dynamically determine the
 # size actual data structures at run time where possible
 # to allow for minor changes in the C code without requiring
 # rework of this tool
-MONITOR_CONFIG = MonitorConfig(
+SYSINIT_CONFIG = SysinitConfig(
     untyped_info_symbol_name = "untyped_info",
     untyped_info_header_struct = Struct("<QQ"),
     untyped_info_object_struct = Struct("<QQQ"),
@@ -157,6 +157,7 @@ INPUT_CAP_IDX = 1
 FAULT_EP_CAP_IDX = 2
 VSPACE_CAP_IDX = 3
 REPLY_CAP_IDX = 4
+# FIXME: @andyb Not sysinit, monitor, make sure!
 MONITOR_EP_CAP_IDX = 5
 BASE_OUTPUT_NOTIFICATION_CAP = 10
 BASE_OUTPUT_ENDPOINT_CAP = BASE_OUTPUT_NOTIFICATION_CAP + 64
@@ -624,7 +625,7 @@ def _get_full_path(filename: Path, search_paths: List[Path]) -> Path:
 def build_system(
         kernel_config: KernelConfig,
         kernel_elf: ElfFile,
-        monitor_elf: ElfFile,
+        sysinit_elf: ElfFile,
         system: SystemDescription,
         invocation_table_size: int,
         system_cnode_size: int,
@@ -650,8 +651,8 @@ def build_system(
 
     # Emulate kernel boot
 
-    ## Determine physical memory region used by the monitor
-    initial_task_size = phys_mem_region_from_elf(monitor_elf, kernel_config.minimum_page_size).size
+    ## Determine physical memory region used by the sysinit task
+    initial_task_size = phys_mem_region_from_elf(sysinit_elf, kernel_config.minimum_page_size).size
 
     ## Get the elf files for each pd:
     pd_elf_files = {
@@ -663,7 +664,7 @@ def build_system(
     ## Determine physical memory region for 'reserved' memory.
     #
     # The 'reserved' memory region will not be touched by seL4 during boot
-    # and allows the monitor (initial task) to create memory regions
+    # and allows the sysinit (root task) to create memory regions
     # from this area, which can then be made available to the appropriate
     # protection domains
     pd_elf_size = sum([
@@ -686,7 +687,7 @@ def build_system(
     assert reserved_base < initial_task_phys_base
 
     initial_task_phys_region = MemoryRegion(initial_task_phys_base, initial_task_phys_base + initial_task_size)
-    initial_task_virt_region = virt_mem_region_from_elf(monitor_elf, kernel_config.minimum_page_size)
+    initial_task_virt_region = virt_mem_region_from_elf(sysinit_elf, kernel_config.minimum_page_size)
 
     reserved_region = MemoryRegion(reserved_base, reserved_base + reserved_size)
 
@@ -750,15 +751,15 @@ def build_system(
     koa = KernelObjectAllocator(kernel_boot_info)
 
     # 2. Now that the available resources are known it is possible to proceed with the
-    # monitor task boot strap.
+    # sysinit task boot strap.
     #
-    # The boot strap of the monitor works in two phases:
+    # The bootstrap of the sysinit task works in two phases:
     #
-    #   1. Setting up the monitor's CSpace
-    #   2. Making the system invocation table available in the monitor's address
+    #   1. Setting up the sysinit task's CSpace
+    #   2. Making the system invocation table available in the sysinit task's address
     #   space.
 
-    # 2.1 The monitor's CSpace consists of two CNodes: a/ the initial task CNode
+    # 2.1 The sysinit task's CSpace consists of two CNodes: a/ the initial task CNode
     # which consists of all the fixed initial caps along with caps for the
     # object create during kernel bootstrap, and b/ the system CNode, which
     # contains caps to all objects that will be created in this process.
@@ -895,7 +896,7 @@ def build_system(
     phys_addr = invocation_table_region.base
     base_page_cap = 0
     for pta in range(base_page_cap, base_page_cap + pages_required):
-        cap_address_names[system_cap_address_mask | pta] = "SmallPage: monitor invocation table"
+        cap_address_names[system_cap_address_mask | pta] = "SmallPage: sysinit invocation table"
 
     cap_slot = base_page_cap
     for ut in (ut for ut in kernel_boot_info.untyped_objects if ut.is_device):
@@ -933,7 +934,7 @@ def build_system(
     base_page_table_cap = cap_slot
 
     for pta in range(base_page_table_cap, base_page_table_cap + page_tables_required):
-        cap_address_names[system_cap_address_mask | pta] = "PageTable: monitor"
+        cap_address_names[system_cap_address_mask | pta] = "PageTable: sysinit"
 
     assert page_tables_required <= kernel_config.fan_out_limit
     bootstrap_invocations.append(Sel4UntypedRetype(
@@ -1583,7 +1584,8 @@ def main() -> int:
     elf_path = SDK_DIR / "board" / args.board / args.config / "elf"
     loader_elf_path = elf_path / "loader.elf"
     kernel_elf_path = elf_path / "sel4.elf"
-    monitor_elf_path = elf_path / "monitor.elf"
+    sysinit_elf_path = elf_path / "sysinit.elf"
+    # monitor_elf_path = elf_path / "monitor.elf"
 
     if not elf_path.exists():
         print(f"Error: board ELF directory '{elf_path}' does not exist")
@@ -1593,6 +1595,9 @@ def main() -> int:
         return 1
     if not kernel_elf_path.exists():
         print(f"Error: loader ELF '{kernel_elf_path}' does not exist")
+        return 1
+    if not sysinit_elf_path.exists():
+        print(f"Error: sysinit ELF '{sysinit_elf_path}' does not exist")
         return 1
     if not monitor_elf_path.exists():
         print(f"Error: monitor ELF '{monitor_elf_path}' does not exist")
@@ -1621,9 +1626,9 @@ def main() -> int:
         fan_out_limit=256
     )
 
-    monitor_elf = ElfFile.from_path(monitor_elf_path)
-    if len(monitor_elf.segments) > 1:
-        raise Exception("monitor ({monitor_elf_path}) has {len(monitor_elf.segments)} segments; must only have one")
+    sysinit_elf = ElfFile.from_path(sysinit_elf_path)
+    if len(sysinit_elf.segments) > 1:
+        raise Exception("sysinit ({sysinit_elf_path}) has {len(sysinit_elf.segments)} segments; must only have one")
 
     invocation_table_size = kernel_config.minimum_page_size
     system_cnode_size = 2
@@ -1632,7 +1637,7 @@ def main() -> int:
         built_system = build_system(
             kernel_config,
             kernel_elf,
-            monitor_elf,
+            sysinit_elf,
             system_description,
             invocation_table_size,
             system_cnode_size,
@@ -1659,23 +1664,23 @@ def main() -> int:
     # we could have a bug, or the kernel could change. It that happens we are
     # in a bad spot! Things will break. So we write out this information so that
     # the monitor can double check this at run time.
-    _, untyped_info_size = monitor_elf.find_symbol(MONITOR_CONFIG.untyped_info_symbol_name)
-    max_untyped_objects = MONITOR_CONFIG.max_untyped_objects(untyped_info_size)
+    _, untyped_info_size = sysinit_elf.find_symbol(SYSINIT_CONFIG.untyped_info_symbol_name)
+    max_untyped_objects = SYSINIT_CONFIG.max_untyped_objects(untyped_info_size)
     if len(built_system.kernel_boot_info.untyped_objects) > max_untyped_objects:
-        raise Exception(f"Too many untyped objects: monitor ({monitor_elf_path}) supports {max_untyped_objects:,d} regions. System has {len(built_system.kernel_boot_info.untyped_objects):,d} objects.")
-    untyped_info_header = MONITOR_CONFIG.untyped_info_header_struct.pack(
+        raise Exception(f"Too many untyped objects: monitor ({sysinit_elf_path}) supports {max_untyped_objects:,d} regions. System has {len(built_system.kernel_boot_info.untyped_objects):,d} objects.")
+    untyped_info_header = SYSINIT_CONFIG.untyped_info_header_struct.pack(
             built_system.kernel_boot_info.untyped_objects[0].cap,
             built_system.kernel_boot_info.untyped_objects[-1].cap + 1
         )
     untyped_info_object_data = []
     for idx, ut in enumerate(built_system.kernel_boot_info.untyped_objects):
-        object_data = MONITOR_CONFIG.untyped_info_object_struct.pack(ut.base, ut.size_bits, ut.is_device)
+        object_data = SYSINIT_CONFIG.untyped_info_object_struct.pack(ut.base, ut.size_bits, ut.is_device)
         untyped_info_object_data.append(object_data)
 
     untyped_info_data = untyped_info_header + b''.join(untyped_info_object_data)
-    monitor_elf.write_symbol(MONITOR_CONFIG.untyped_info_symbol_name, untyped_info_data)
+    sysinit_elf.write_symbol(SYSINIT_CONFIG.untyped_info_symbol_name, untyped_info_data)
 
-    _, bootstrap_invocation_data_size = monitor_elf.find_symbol(MONITOR_CONFIG.bootstrap_invocation_data_symbol_name)
+    _, bootstrap_invocation_data_size = sysinit_elf.find_symbol(SYSINIT_CONFIG.bootstrap_invocation_data_symbol_name)
 
     bootstrap_invocation_data = b''
     for bootstrap_invocation in built_system.bootstrap_invocations:
@@ -1688,11 +1693,11 @@ def main() -> int:
         for bootstrap_invocation in built_system.bootstrap_invocations:
             print(invocation_to_str(bootstrap_invocation, built_system.cap_lookup), file=stderr)
 
-        raise UserError("bootstrap invocations too large for monitor")
+        raise UserError("bootstrap invocations too large for system initializer")
 
-    monitor_elf.write_symbol(MONITOR_CONFIG.bootstrap_invocation_count_symbol_name, pack("<Q", len(built_system.bootstrap_invocations)))
-    monitor_elf.write_symbol(MONITOR_CONFIG.system_invocation_count_symbol_name, pack("<Q", len(built_system.system_invocations)))
-    monitor_elf.write_symbol(MONITOR_CONFIG.bootstrap_invocation_data_symbol_name, bootstrap_invocation_data)
+    sysinit_elf.write_symbol(SYSINIT_CONFIG.bootstrap_invocation_count_symbol_name, pack("<Q", len(built_system.bootstrap_invocations)))
+    sysinit_elf.write_symbol(SYSINIT_CONFIG.system_invocation_count_symbol_name, pack("<Q", len(built_system.system_invocations)))
+    sysinit_elf.write_symbol(SYSINIT_CONFIG.bootstrap_invocation_data_symbol_name, bootstrap_invocation_data)
 
     system_invocation_data = b''
     for system_invocation in built_system.system_invocations:
@@ -1704,16 +1709,18 @@ def main() -> int:
     tcb_caps = built_system.tcb_caps
     sched_caps = built_system.sched_caps
     ntfn_caps = built_system.ntfn_caps
-    monitor_elf.write_symbol("fault_ep", pack("<Q", built_system.fault_ep_cap_address))
-    monitor_elf.write_symbol("reply", pack("<Q", built_system.reply_cap_address))
-    monitor_elf.write_symbol("tcbs", pack("<Q" + "Q" * len(tcb_caps), 0, *tcb_caps))
-    monitor_elf.write_symbol("scheduling_contexts", pack("<Q" + "Q" * len(sched_caps), 0, *sched_caps))
-    monitor_elf.write_symbol("notification_caps", pack("<Q" + "Q" * len(ntfn_caps), 0, *ntfn_caps))
-    names_array = bytearray([0] * (64 * 16))
-    for idx, pd in enumerate(system_description.protection_domains, 1):
-        nm = pd.name.encode("utf8")[:15]
-        names_array[idx * 16:idx * 16+len(nm)] = nm
-    monitor_elf.write_symbol("pd_names", names_array)
+
+    # FIXME: @andyb sysinit task does not need these symbols, only the monitor
+    # monitor_elf.write_symbol("fault_ep", pack("<Q", built_system.fault_ep_cap_address))
+    # monitor_elf.write_symbol("reply", pack("<Q", built_system.reply_cap_address))
+    # monitor_elf.write_symbol("tcbs", pack("<Q" + "Q" * len(tcb_caps), 0, *tcb_caps))
+    # monitor_elf.write_symbol("scheduling_contexts", pack("<Q" + "Q" * len(sched_caps), 0, *sched_caps))
+    # monitor_elf.write_symbol("notification_caps", pack("<Q" + "Q" * len(ntfn_caps), 0, *ntfn_caps))
+    # names_array = bytearray([0] * (64 * 16))
+    # for idx, pd in enumerate(system_description.protection_domains, 1):
+    #     nm = pd.name.encode("utf8")[:15]
+    #     names_array[idx * 16:idx * 16+len(nm)] = nm
+    # monitor_elf.write_symbol("pd_names", names_array)
 
 
     # B: The loader
@@ -1766,7 +1773,7 @@ def main() -> int:
     loader = Loader(
         loader_elf_path,
         kernel_elf,
-        monitor_elf,
+        sysinit_elf,
         built_system.initial_task_phys_region.base,
         built_system.reserved_region,
         regions,
