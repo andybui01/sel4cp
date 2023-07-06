@@ -87,11 +87,11 @@ char _stack[4096];
 
 static char pd_names[MAX_PDS][MAX_NAME_LEN];
 
-seL4_Word fault_ep;
-seL4_Word reply;
-seL4_Word tcbs[MAX_TCBS];
-seL4_Word scheduling_contexts[MAX_TCBS];
-seL4_Word notification_caps[MAX_TCBS];
+seL4_CPtr fault_ep;
+seL4_CPtr reply;
+seL4_CPtr tcbs[MAX_TCBS];
+seL4_CPtr scheduling_contexts[MAX_TCBS];
+seL4_CPtr notification_caps[MAX_TCBS];
 
 struct region {
     uintptr_t paddr;
@@ -386,7 +386,7 @@ monitor(void)
         puts("\n");
 
         if (label == seL4_Fault_NullFault && badge < MAX_PDS) {
-            /* This is a request from our PD to become passive */ 
+            /* This is a request from a PD to become passive */ 
             err = seL4_SchedContext_UnbindObject(scheduling_contexts[badge], tcb_cap);
             err = seL4_SchedContext_Bind(scheduling_contexts[badge], notification_caps[badge]);
             if (err != seL4_NoError) {

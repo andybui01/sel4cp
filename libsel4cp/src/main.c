@@ -15,6 +15,8 @@
 #define INPUT_CAP 1
 #define REPLY_CAP 4
 
+#define UNBIND_SC_LABEL 0
+
 #define NOTIFICATION_BITS 57
 
 char _stack[4096]  __attribute__((__aligned__(16)));
@@ -97,7 +99,7 @@ main(void)
     */
     if (passive) {
         have_signal = true;
-        signal_msg = seL4_MessageInfo_new(0, 0, 0, 1);
+        signal_msg = seL4_MessageInfo_new(UNBIND_SC_LABEL, 0, 0, 1);
         seL4_SetMR(0, 0);
         signal = (MONITOR_EP);
     }
