@@ -529,6 +529,17 @@ class Sel4TcbBindNotification(Sel4Invocation):
 
 
 @dataclass
+class Sel4DomainSet(Sel4Invocation):
+    _object_type = "Domain Set"
+    _method_name = "Set"
+    _extra_caps = ("tcb", )
+    label = Sel4Label.DomainSetSet
+    domainset: int
+    domain: int
+    tcb: int
+
+
+@dataclass
 class Sel4AsidPoolAssign(Sel4Invocation):
     _object_type = "ASID Pool"
     _method_name = "Assign"

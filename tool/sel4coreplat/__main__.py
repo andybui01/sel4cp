@@ -62,6 +62,7 @@ from sel4coreplat.sel4 import (
     Sel4TcbSetIpcBuffer,
     Sel4TcbWriteRegisters,
     Sel4TcbBindNotification,
+    Sel4DomainSet,
     Sel4TcbResume,
     Sel4CnodeMint,
     Sel4CnodeCopy,
@@ -765,20 +766,13 @@ def build_system(
     # on how `system_cnode_size` is iteratively determined).
     #
     # The system CNode is not available at startup and must be created (by retyping
-    # memory from an untyped object). Once created the two CNodes must be aranged
+    # memory from an untyped object). Once created the two CNodes must be arranged
     # as a tree such that the slots in both CNodes are addressable.
     #
     # The system CNode shall become the root of the CSpace. The initial CNode shall
     # be copied to slot zero of the system CNode. In this manner all caps in the initial
     # CNode will keep their original cap addresses. This isn't required but it makes
     # allocation, debugging and reasoning about the system more straight forward.
-    #
-    # The guard shall be selected so the least significant bits are used. The guard
-    # for the root shall be:
-    #
-    #   64 - system cnode bits - initial cnode bits
-    #
-    # The guard for the initial CNode will be zero.
     #
     # 2.1.1: Allocate the *root* CNode. It is two entries:
     #  slot 0: the existing init cnode
@@ -788,7 +782,7 @@ def build_system(
     root_cnode_cap =  kernel_boot_info.first_available_cap
     cap_address_names[root_cnode_cap] = "CNode: root"
 
-    # 2.1.2: Allocate the *system* CNode. It is the cnodes that
+    # 2.1.2: Allocate the *system* CNode. It is the CNode that
     # will have enough slots for all required caps.
     system_cnode_allocation = koa.alloc(system_cnode_size * (1 << SLOT_BITS))
     system_cnode_cap = kernel_boot_info.first_available_cap + 1
@@ -813,10 +807,13 @@ def build_system(
 
     # 2.1.4: Now insert a cap to the initial CNode into slot zero of the newly
     # allocated root CNode. It uses sufficient guard bits to ensure it is
-    # completed padded to word size
+    # completed padded to word size.
     #
-    # guard size is the lower bit of the guard, upper bits are the guard itself
-    # which for our purposes is always zero.
+    # guard width is the lower 6 bits of the data word, upper bits are the guard value itself
+    # which is now outdated and no longer used
+    #
+    # Since the initial CNode will become a L2 CNode (the root CNode being L1), the guard for it
+    # will be: 64 - (bits translated by root CNode) - (bits translated by the initial CNode)
     guard = kernel_config.cap_address_bits - root_cnode_bits - kernel_config.init_cnode_bits
     bootstrap_invocations.append(Sel4CnodeMint(
         root_cnode_cap,
@@ -829,10 +826,9 @@ def build_system(
         guard
     ))
 
-    # 2.1.5: Now it is possible to switch our root CNode to the newly created
-    # root cnode. We have a zero sized guard. This CNode represents the top
-    # bit of any cap addresses.
-    #
+    # 2.1.5: Now it is possible to switch our root CNode (of the init task)
+    # to the newly created root CNode. We have a zero width guard. This
+    # CNode represents the top bit of any cap addresses.
     root_guard = 0
     bootstrap_invocations.append(Sel4TcbSetSpace(
         INIT_TCB_CAP_ADDRESS,
@@ -859,6 +855,7 @@ def build_system(
     # 2.1.7: Now that we have created the object, we can 'mutate' it
     # to the correct place:
     # Slot #1 of the new root cnode
+    # FIXME: this is a CNode Mint operation, not mutate
     guard = kernel_config.cap_address_bits - root_cnode_bits - system_cnode_bits
     system_cap_address_mask = 1 << (kernel_config.cap_address_bits - 1)
     bootstrap_invocations.append(Sel4CnodeMint(
@@ -1083,6 +1080,7 @@ def build_system(
     tcb_names = [f"TCB: PD={pd.name}" for pd in system.protection_domains]
     tcb_objects = init_system.allocate_objects(SEL4_TCB_OBJECT, tcb_names)
     tcb_caps = [tcb_obj.cap_addr for tcb_obj in tcb_objects]
+
     schedcontext_names = [f"SchedContext: PD={pd.name}" for pd in system.protection_domains]
     schedcontext_objects = init_system.allocate_objects(SEL4_SCHEDCONTEXT_OBJECT, schedcontext_names, size=PD_SCHEDCONTEXT_SIZE)
     schedcontext_caps = [sc.cap_addr for sc in schedcontext_objects]
@@ -1657,7 +1655,7 @@ def main() -> int:
     # A: The monitor
 
     # A.1: As part of emulated boot we determined exactly how the kernel would
-    # create untyped objects. Throught testing we know that this matches, but
+    # create untyped objects. Through testing we know that this matches, but
     # we could have a bug, or the kernel could change. It that happens we are
     # in a bad spot! Things will break. So we write out this information so that
     # the monitor can double check this at run time.

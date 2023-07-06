@@ -1,0 +1,69 @@
+The monitor initializer is currently split into 2 stages:
+1. bootstrapping
+2. system initialization
+
+System initialization (sys init) is where we do the main load of the work
+in terms of creating capabilities and defining relationships as specified
+in the SDF. The memory used to back these invocations (stored in a table)
+needs to be mapped into the initial task's VSpace first.
+
+In the meantime, we will place a small invocation table in the ELF data
+region, to get us to the point where we can start mapping stuff into
+the init task's VSpace.
+
+This text document is a recollection of notes used to describe the
+steps taken in tool/sel4coreplat/__main__.py to produce a system. It is meant
+to be a sort-of commentary for the code.
+
+
+2.1 Initial CSpace creation
+
+The commenting is hard to understand so here is a diagram:
+
+root cnode        init task cnode
+[  0  ] ----------> [        ]
+[  1  ]             [        ]
+   |
+   |              system cnode
+   |--------------> [        ]
+                    [        ]
+                    [        ]
+
+The author notes that the init task cnode is placed into slot 0 of the newly formed
+root cnode, meaning it keeps the same addresses as before.
+
+2.2 Map pages for system invocation table (system_invocation_data[] in monitor main.c)
+
+3. System invocations
+
+Section 3 is where we create the entire system as specified by the SDF. Currently,
+there is no partition-equivalent abstraction in the core platform, so everything
+exists in a single partition currently. We want to allow developers to specifiy
+which seL4_Domain/partition components can belong to.
+
+This partition model will need a monitor PER partition. Meaning the init task
+monitor should no longer have access to all the capabilities it used during
+system initialization.
+
+The plan is to decouple the monitor into 2 roles:
+- system initializer
+- monitor
+
+The monitor will be a fault handling process with the highest priority in each
+partition (enforce this in the sysxml parser). It will have enough capabilities
+to manage its own partition.
+
+Requirements for each monitor:
+- Fresh CSpace (we don't need the init task caps)
+- Fault endpoint
+- Reply capability (it doesn't need to be used, just supplied when we Recv)
+- TCB caps for PDs the monitor manages
+- Ntfn caps
+- SCs for the TCBs/NTFNs
+    - From the manual:
+
+    "This means the PD will be scheduled on receiving a notification, whereby
+    it will run on the notification's scheduling context, or when the PD receives
+    a protected procedure by another PD, whereby the passive PD will run on the
+    scheduling context of the callee."
+    

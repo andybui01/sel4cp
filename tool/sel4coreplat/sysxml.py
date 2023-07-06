@@ -140,6 +140,10 @@ class SystemDescription:
         self.pt_by_name: Dict[str, Partition] = {}
 
         for pt in partitions:
+            if pt.name in self.pt_by_name:
+                raise UserError(f"Duplicate partition name '{pt.name}'.")
+            self.pt_by_name[pt.name] = pt
+
             if len(pt.protection_domains) > 63:
                 raise UserError(f"Too many protection domains ({len(self.protection_domains)}) defined. Maximum is 63.")
 
