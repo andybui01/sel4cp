@@ -1086,8 +1086,8 @@ def build_system(
     schedcontext_objects = init_system.allocate_objects(SEL4_SCHEDCONTEXT_OBJECT, schedcontext_names, size=PD_SCHEDCONTEXT_SIZE)
     schedcontext_caps = [sc.cap_addr for sc in schedcontext_objects]
     pp_protection_domains = [pd for pd in system.protection_domains if pd.pp]
-    endpoint_names = ["EP: Monitor Fault"] + [f"EP: PD={pd.name}" for pd in pp_protection_domains]
-    reply_names = ["Reply: Monitor"]+ [f"Reply: PD={pd.name}" for pd in system.protection_domains]
+    endpoint_names = [f"EP: PD={pd.name}" for pd in pp_protection_domains]
+    reply_names = [f"Reply: PD={pd.name}" for pd in system.protection_domains]
     reply_objects = init_system.allocate_objects(SEL4_REPLY_OBJECT, reply_names)
     reply_object = reply_objects[0]
     # FIXME: Probably only need reply objects for PPs
@@ -1383,18 +1383,6 @@ def build_system(
                     pd_b_badge)
             )
 
-    # mint a cap between monitor and passive PDs.
-    for idx, (cnode_obj, pd) in enumerate(zip(cnode_objects, system.protection_domains), 1):
-        if pd.passive:
-            system_invocations.append(Sel4CnodeMint(
-                                        cnode_obj.cap_addr, 
-                                        MONITOR_EP_CAP_IDX, 
-                                        PD_CAP_BITS, 
-                                        root_cnode_cap, 
-                                        fault_ep_endpoint_object.cap_addr, 
-                                        kernel_config.cap_address_bits,
-                                        SEL4_RIGHTS_ALL, 
-                                        idx))
     # All minting is complete at this point
 
     # Associate badges
@@ -1585,7 +1573,6 @@ def main() -> int:
     loader_elf_path = elf_path / "loader.elf"
     kernel_elf_path = elf_path / "sel4.elf"
     sysinit_elf_path = elf_path / "sysinit.elf"
-    # monitor_elf_path = elf_path / "monitor.elf"
 
     if not elf_path.exists():
         print(f"Error: board ELF directory '{elf_path}' does not exist")
@@ -1598,9 +1585,6 @@ def main() -> int:
         return 1
     if not sysinit_elf_path.exists():
         print(f"Error: sysinit ELF '{sysinit_elf_path}' does not exist")
-        return 1
-    if not monitor_elf_path.exists():
-        print(f"Error: monitor ELF '{monitor_elf_path}' does not exist")
         return 1
 
     if not args.system.exists():
@@ -1657,13 +1641,13 @@ def main() -> int:
 
     # At this point we just need to patch the files (in memory) and write out the final image.
 
-    # A: The monitor
+    # A: The system initializer
 
     # A.1: As part of emulated boot we determined exactly how the kernel would
     # create untyped objects. Through testing we know that this matches, but
     # we could have a bug, or the kernel could change. It that happens we are
     # in a bad spot! Things will break. So we write out this information so that
-    # the monitor can double check this at run time.
+    # the sysinit task can double check this at run time.
     _, untyped_info_size = sysinit_elf.find_symbol(SYSINIT_CONFIG.untyped_info_symbol_name)
     max_untyped_objects = SYSINIT_CONFIG.max_untyped_objects(untyped_info_size)
     if len(built_system.kernel_boot_info.untyped_objects) > max_untyped_objects:
@@ -1742,7 +1726,7 @@ def main() -> int:
         for region in built_system.regions:
             f.write(f"       {region}\n")
         f.write("\n")
-        f.write("# Monitor (Initial Task) Info\n\n")
+        f.write("# System Initializer (Initial Task) Info\n\n")
         f.write(f"     virtual memory : {built_system.initial_task_virt_region}\n")
         f.write(f"     physical memory: {built_system.initial_task_phys_region}\n")
         f.write("\n")
