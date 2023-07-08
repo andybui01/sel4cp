@@ -301,6 +301,7 @@ def build_lib_component(
 def main() -> None:
     parser = ArgumentParser()
     parser.add_argument("--sel4", type=Path, required=True)
+    parser.add_argument("--dev", action="store_true")
     args = parser.parse_args()
     sel4_dir = args.sel4.expanduser()
     if not sel4_dir.exists():
@@ -335,7 +336,8 @@ def main() -> None:
     tool_target = root_dir / "bin" / "sel4cp"
 
     if not tool_target.exists():
-        test_tool()
+        if not args.dev:
+            test_tool()
         build_tool(tool_target)
 
     build_doc(root_dir)
