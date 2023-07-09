@@ -1474,6 +1474,19 @@ def build_system(
     invocation.repeat(count=len(system.protection_domains), tcb=1, notification=1)
     system_invocations.append(invocation)
 
+    # set domain
+
+    # suppose 3 partitions, we currently know that sysxml will layout system.protection_domains such that
+    # the list will be as such: XXXXXXXYYYYZZZZZZZZZZZ where X, Y, Z are PDs belonging to their respective
+    # partitions. so here we just repeat for the size of each partition
+    start_tcb_of_partition = tcb_objects[0].cap_addr
+    domain = 0
+    for partition in system.partitions:
+        invocation = Sel4DomainSet(DOMAIN_CAP_ADDRESS, domain, start_tcb_of_partition)
+        invocation.repeat(count=len(partition.protection_domains), tcb=1)
+        system_invocations.append(invocation)
+        start_tcb_of_partition += len(partition)
+
     # Resume (start) all the threads
     invocation = Sel4TcbResume(tcb_objects[0].cap_addr)
     invocation.repeat(count=len(system.protection_domains), tcb=1)
