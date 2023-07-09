@@ -238,7 +238,7 @@ class KernelObjectAllocator:
                 ut.allocations.append(allocation)
                 return allocation
 
-        raise Exception("Can't alloc - nos pace")
+        raise Exception("Can't alloc - no space")
 
 
 def invocation_to_str(inv: Sel4Invocation, cap_lookup: Dict[int, str]) -> str:
@@ -1673,6 +1673,7 @@ def main() -> int:
     max_untyped_objects = SYSINIT_CONFIG.max_untyped_objects(untyped_info_size)
     if len(built_system.kernel_boot_info.untyped_objects) > max_untyped_objects:
         raise Exception(f"Too many untyped objects: monitor ({sysinit_elf_path}) supports {max_untyped_objects:,d} regions. System has {len(built_system.kernel_boot_info.untyped_objects):,d} objects.")
+    
     untyped_info_header = SYSINIT_CONFIG.untyped_info_header_struct.pack(
             built_system.kernel_boot_info.untyped_objects[0].cap,
             built_system.kernel_boot_info.untyped_objects[-1].cap + 1

@@ -864,7 +864,10 @@ def emulate_kernel_boot(
     else:
         raise Exception("Couldn't find appropriate region for initial task kernel objects")
 
-    fixed_cap_count = 0xf
+    # bootinfo_types.h - this is seL4_NumInitialCaps
+    fixed_cap_count = 15
+
+    # from here on we add a cap everytime provide_cap() is called in the kernel boot
     sched_control_cap_count = 1
     paging_cap_count = _get_arch_n_paging(initial_task_virt_region)
     page_cap_count = initial_task_virt_region.size // kernel_config.minimum_page_size

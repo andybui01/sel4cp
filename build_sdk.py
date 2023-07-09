@@ -73,7 +73,8 @@ SUPPORTED_CONFIGS = (
         kernel_options = {
             "KernelDebugBuild": True,
             "KernelPrinting": True,
-            "KernelVerificationBuild": False
+            "KernelVerificationBuild": False,
+            "KernelNumDomains": 2
         }
     ),
 )

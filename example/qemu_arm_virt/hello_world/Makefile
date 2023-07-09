@@ -23,6 +23,9 @@ ifeq ($(strip $(SEL4CP_TOOL)),)
 $(error SEL4CP_TOOL must be specified)
 endif
 
+IMAGE_FILE = $(BUILD_DIR)/loader.img
+REPORT_FILE = $(BUILD_DIR)/report.txt
+
 # List of partition directories
 PARTITIONS := hello world
 
@@ -33,13 +36,15 @@ PARTITIONS := hello world
 # load them onto seL4_TCBs, and assign them to domain. This process is automated by
 # the tool, I guess.
 all: images hello_world.system
+	@echo ===Makefile params===
 	@echo $(BUILD_DIR)
 	@echo $(SEL4CP_SDK)
 	@echo $(SEL4CP_BOARD)
 	@echo $(SEL4CP_CONFIG)
 	@echo $(SEL4CP_TOOL)
-
-	$(SEL4CP_TOOL) hello_world.system --search-path $(BUILD_DIR) --board $(SEL4CP_BOARD) --config $(SEL4CP_CONFIG)
+	@echo 
+	@echo ===Running the tool===
+	$(SEL4CP_TOOL) hello_world.system --search-path $(BUILD_DIR) --board $(SEL4CP_BOARD) --config $(SEL4CP_CONFIG) -o $(IMAGE_FILE) -r $(REPORT_FILE)
 
 images:
 	mkdir -p $(addprefix $(BUILD_DIR)/, $(PARTITIONS))
