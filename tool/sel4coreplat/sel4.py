@@ -152,9 +152,9 @@ def calculate_rootserver_size(initial_task_region: MemoryRegion) -> int:
     tcb_bits = 11  # seL4_TCBBits
     page_bits = 12  # seL4_PageBits
     asid_pool_bits = 12  # seL4_ASIDPoolBits
-    vspace_bits = 12  #seL4_VSpaceBits
+    vspace_bits = 12  # seL4_VSpaceBits
     page_table_bits = 12  # seL4_PageTableBits
-    min_sched_context_bits = 8 # seL4_MinSchedContextBits
+    min_sched_context_bits = 7 # seL4_MinSchedContextBits
 
     size = 0
     size += 1 << (root_cnode_bits + slot_bits)
@@ -771,7 +771,7 @@ def _kernel_boot_mem(kernel_elf: ElfFile) -> MemoryRegion:
 def _rootserver_max_size_bits() -> int:
     slot_bits = 5  # seL4_SlotBits
     root_cnode_bits = 12  # CONFIG_ROOT_CNODE_SIZE_BITS
-    vspace_bits = 12  #seL4_VSpaceBits
+    vspace_bits = 12  # seL4_VSpaceBits
 
     cnode_size_bits = root_cnode_bits + slot_bits
     return max(cnode_size_bits, vspace_bits)
