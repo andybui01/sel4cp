@@ -85,13 +85,13 @@ seL4_IPCBuffer *__sel4_ipc_buffer;
 
 char _stack[4096];
 
-static char pd_names[MAX_PDS][MAX_NAME_LEN];
+// static char pd_names[MAX_PDS][MAX_NAME_LEN];
 
-seL4_CPtr fault_ep;
-seL4_CPtr reply;
-seL4_CPtr tcbs[MAX_TCBS];
-seL4_CPtr scheduling_contexts[MAX_TCBS];
-seL4_CPtr notification_caps[MAX_TCBS];
+// seL4_CPtr fault_ep;
+// seL4_CPtr reply;
+// seL4_CPtr tcbs[MAX_TCBS];
+// seL4_CPtr scheduling_contexts[MAX_TCBS];
+// seL4_CPtr notification_caps[MAX_TCBS];
 
 struct region {
     uintptr_t paddr;
@@ -112,6 +112,18 @@ seL4_Word system_invocation_count;
 seL4_Word *system_invocation_data = (void*)0x80000000;
 
 struct untyped_info untyped_info;
+
+void __attribute__((weak))
+__assert_fail(const char  *str, const char *file, int line, const char *function)
+{
+    puts("assert failed: ");
+    puts(str);
+    puts(" ");
+    puts(file);
+    puts(" ");
+    puts(function);
+    puts("\n");
+}
 
 static void
 check_untypeds_match(seL4_BootInfo *bi)
