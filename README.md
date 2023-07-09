@@ -1,3 +1,6 @@
+This is an experimental fork of sel4cp to evaluate the configuration of partitioned systems
+using sel4cp.
+
 # seL4 Core Platform
 
 The purpose of the seL4 Core Platform (sel4cp) is to enable system designers to create static software systems based on the seL4 microkernel.
@@ -80,7 +83,9 @@ Testing has been performed using commit `92f0f3ab28f00c97851512216c855f4180534a6
 
 ## Building the SDK
 
-    $ ./env/bin/python build_sdk.py --sel4=<path to sel4>
+    $ ./pyenv/bin/python build_sdk.py --dev --sel4=<path to sel4>
+
+Currently, we recommend using the `--dev` option as the tests are not up to date, and this option skips testing of the tool.
 
 ## Using the SDK
 
@@ -128,7 +133,7 @@ bsp/$board/$config/elf/monitor.elf
 
 The currently supported boards:
 
-* tqma8xqp1gb
+* TODO
 
 The currently supported configurations are:
 
@@ -137,18 +142,7 @@ The currently supported configurations are:
 
 ## Supported Boards
 
-### tqma8xqp-1gb
-
-The TQMa8Xx Embedded Module from TQ Group configured with the NXP i.MX8QXP SoC and 1GiB of DDR3 ECC memory.
-
-https://www.tq-group.com/en/products/tq-embedded/arm-architecture/tqma8xx/
-
-All testing has been performed with the module on the MBa8Xx carrier board which is included in the starter kit.
-
-The provided board support should be at the module level and does not make any assumptions about the carrier board.
-
-Note: There are different configured of the TQMa8Xx board which include different NXP SoCs and different memory configurations.
-Such modules are not supported.
+### TODO
 
 ## Supported Configurations
 
