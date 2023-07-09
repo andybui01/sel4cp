@@ -601,7 +601,6 @@ class BuiltSystem:
     system_invocations: List[Sel4Invocation]
     kernel_boot_info: KernelBootInfo
     reserved_region: MemoryRegion
-    fault_ep_cap_address: int
     reply_cap_address: int
     cap_lookup: Dict[int, str]
     tcb_caps: List[int]
@@ -1085,16 +1084,22 @@ def build_system(
     schedcontext_names = [f"SchedContext: PD={pd.name}" for pd in system.protection_domains]
     schedcontext_objects = init_system.allocate_objects(SEL4_SCHEDCONTEXT_OBJECT, schedcontext_names, size=PD_SCHEDCONTEXT_SIZE)
     schedcontext_caps = [sc.cap_addr for sc in schedcontext_objects]
-    pp_protection_domains = [pd for pd in system.protection_domains if pd.pp]
-    endpoint_names = [f"EP: PD={pd.name}" for pd in pp_protection_domains]
     reply_names = [f"Reply: PD={pd.name}" for pd in system.protection_domains]
     reply_objects = init_system.allocate_objects(SEL4_REPLY_OBJECT, reply_names)
     reply_object = reply_objects[0]
     # FIXME: Probably only need reply objects for PPs
     pd_reply_objects = reply_objects[1:]
-    endpoint_objects = init_system.allocate_objects(SEL4_ENDPOINT_OBJECT, endpoint_names)
-    fault_ep_endpoint_object = endpoint_objects[0]
-    pp_ep_endpoint_objects = dict(zip(pp_protection_domains, endpoint_objects[1:]))
+
+    # there is no system monitor anymore, and root PDs become _optional_, so the
+    # need for endpoints is dependent on:
+    # - if PDs have PPs
+    # - if a root PD is setup
+    pp_protection_domains = [pd for pd in system.protection_domains if pd.pp]
+    if len(pp_protection_domains) > 0:
+        endpoint_names = [f"EP: PD={pd.name}" for pd in pp_protection_domains]
+        endpoint_objects = init_system.allocate_objects(SEL4_ENDPOINT_OBJECT, endpoint_names)
+        pp_ep_endpoint_objects = dict(zip(pp_protection_domains, endpoint_objects[1:]))
+
     notification_names = [f"Notification: PD={pd.name}" for pd in system.protection_domains]
     notification_objects = init_system.allocate_objects(SEL4_NOTIFICATION_OBJECT, notification_names)
     notification_objects_by_pd = dict(zip(system.protection_domains, notification_objects))
@@ -1251,11 +1256,12 @@ def build_system(
             badged_irq_caps[pd].append(badged_cap_address)
             cap_slot += 1
 
-    invocation = Sel4CnodeMint(system_cnode_cap, cap_slot, system_cnode_bits, root_cnode_cap, fault_ep_endpoint_object.cap_addr, kernel_config.cap_address_bits, SEL4_RIGHTS_ALL, 1)
-    invocation.repeat(len(system.protection_domains), dest_index=1, badge=1)
-    system_invocations.append(invocation)
-    badged_fault_ep = system_cap_address_mask | cap_slot
-    cap_slot += len(system.protection_domains)
+    # set up badged endpoints for monitors, one for each PD. FIXME: remove completely after root PDs integrated
+    # invocation = Sel4CnodeMint(system_cnode_cap, cap_slot, system_cnode_bits, root_cnode_cap, fault_ep_endpoint_object.cap_addr, kernel_config.cap_address_bits, SEL4_RIGHTS_ALL, 1)
+    # invocation.repeat(len(system.protection_domains), dest_index=1, badge=1)
+    # system_invocations.append(invocation)
+    # badged_fault_ep = system_cap_address_mask | cap_slot
+    # cap_slot += len(system.protection_domains)
 
     final_cap_slot = cap_slot
 
@@ -1447,10 +1453,13 @@ def build_system(
         )
 
     for tcb_obj, schedcontext_obj, pd in zip(tcb_objects, schedcontext_objects, system.protection_domains):
-        system_invocations.append(Sel4TcbSetSchedParams(tcb_obj.cap_addr, INIT_TCB_CAP_ADDRESS, pd.priority, pd.priority, schedcontext_obj.cap_addr, fault_ep_endpoint_object.cap_addr))
+        # Monitor no longer receives faults, set fault_ep to 0
+        system_invocations.append(Sel4TcbSetSchedParams(tcb_obj.cap_addr, INIT_TCB_CAP_ADDRESS, pd.priority, pd.priority, schedcontext_obj.cap_addr, 0))
 
     # set vspace / cspace (SetSpace)
-    invocation = Sel4TcbSetSpace(tcb_objects[0].cap_addr, badged_fault_ep, cnode_objects[0].cap_addr, kernel_config.cap_address_bits - PD_CAP_BITS, vspace_objects[0].cap_addr, 0)
+    # FIXME: badged endpoints for faulting -> root PDs eventually go here. For now set to 0.
+    # invocation = Sel4TcbSetSpace(tcb_objects[0].cap_addr, badged_fault_ep, cnode_objects[0].cap_addr, kernel_config.cap_address_bits - PD_CAP_BITS, vspace_objects[0].cap_addr, 0)
+    invocation = Sel4TcbSetSpace(tcb_objects[0].cap_addr, 0, cnode_objects[0].cap_addr, kernel_config.cap_address_bits - PD_CAP_BITS, vspace_objects[0].cap_addr, 0)
     invocation.repeat(len(system.protection_domains), tcb=1, fault_ep=1, cspace_root=1, vspace_root=1)
     system_invocations.append(invocation)
 
@@ -1485,7 +1494,7 @@ def build_system(
         invocation = Sel4DomainSet(DOMAIN_CAP_ADDRESS, domain, start_tcb_of_partition)
         invocation.repeat(count=len(partition.protection_domains), tcb=1)
         system_invocations.append(invocation)
-        start_tcb_of_partition += len(partition)
+        start_tcb_of_partition += len(partition.protection_domains)
 
     # Resume (start) all the threads
     invocation = Sel4TcbResume(tcb_objects[0].cap_addr)
@@ -1530,7 +1539,6 @@ def build_system(
         system_invocations = system_invocations,
         kernel_boot_info = kernel_boot_info,
         reserved_region = reserved_region,
-        fault_ep_cap_address = fault_ep_endpoint_object.cap_addr,
         reply_cap_address = reply_object.cap_addr,
         cap_lookup = cap_address_names,
         tcb_caps = tcb_caps,
