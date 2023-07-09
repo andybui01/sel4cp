@@ -28,24 +28,24 @@ LD := $(TOOLCHAIN)-ld
 AS := $(TOOLCHAIN)-as
 SEL4CP_TOOL ?= $(SEL4CP_SDK)/bin/sel4cp
 
-HELLO_OBJS := hello.o
+WORLD_OBJS := world.o
 
 BOARD_DIR := $(SEL4CP_SDK)/board/$(SEL4CP_BOARD)/$(SEL4CP_CONFIG)
 
-IMAGES := hello.elf
-CFLAGS := -mcpu=$(CPU) -mstrict-align -nostdlib -ffreestanding -g3 -O3 -Wall  -Wno-unused-function -Werror -I$(BOARD_DIR)/include
+IMAGES := world.elf
+CFLAGS := -mcpu=$(CPU) -mstrict-align -nostdlib -ffreestanding -g3 -Wall  -Wno-unused-function -Werror -I$(BOARD_DIR)/include
 LDFLAGS := -L$(BOARD_DIR)/lib
 LIBS := -lsel4cp -Tsel4cp.ld
 
-HELLO_BUILD_DIR = $(BUILD_DIR)/hello
+WORLD_BUILD_DIR = $(BUILD_DIR)/world
 
-all: $(addprefix $(HELLO_BUILD_DIR)/, $(IMAGES))
+all: $(addprefix $(WORLD_BUILD_DIR)/, $(IMAGES))
 
-$(HELLO_BUILD_DIR)/%.o: %.c Makefile
+$(WORLD_BUILD_DIR)/%.o: %.c Makefile
 	$(CC) -c $(CFLAGS) $< -o $@
 
-$(HELLO_BUILD_DIR)/%.o: %.s Makefile
+$(WORLD_BUILD_DIR)/%.o: %.s Makefile
 	$(AS) -g3 -mcpu=$(CPU) $< -o $@
 
-$(HELLO_BUILD_DIR)/hello.elf: $(addprefix $(HELLO_BUILD_DIR)/, $(HELLO_OBJS))
+$(WORLD_BUILD_DIR)/world.elf: $(addprefix $(WORLD_BUILD_DIR)/, $(WORLD_OBJS))
 	$(LD) $(LDFLAGS) $^ $(LIBS) -o $@

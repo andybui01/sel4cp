@@ -19,6 +19,10 @@ ifeq ($(strip $(SEL4CP_CONFIG)),)
 $(error SEL4CP_CONFIG must be specified)
 endif
 
+ifeq ($(strip $(SEL4CP_TOOL)),)
+$(error SEL4CP_TOOL must be specified)
+endif
+
 # List of partition directories
 PARTITIONS := hello world
 
@@ -33,6 +37,7 @@ all: images hello_world.system
 	@echo $(SEL4CP_SDK)
 	@echo $(SEL4CP_BOARD)
 	@echo $(SEL4CP_CONFIG)
+	@echo $(SEL4CP_TOOL)
 
 	$(SEL4CP_TOOL) hello_world.system --search-path $(BUILD_DIR) --board $(SEL4CP_BOARD) --config $(SEL4CP_CONFIG)
 
