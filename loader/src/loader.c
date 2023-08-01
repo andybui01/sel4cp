@@ -158,6 +158,18 @@ putc(uint8_t ch)
 {
     *((volatile uint32_t *)(0x00FF000030)) = ch;
 }
+#elif defined(BOARD_ls1012a_frwy)
+#define UART_BASE 0x21c0500
+#define STAT 0x05
+#define TRANSMIT 0x00
+#define STAT_TDRE 0x20
+
+static void
+putc(uint8_t ch)
+{
+    while (!((*(volatile uint8_t *)(UART_BASE + STAT)) & STAT_TDRE)) { }
+    *((volatile uint8_t *)(UART_BASE + TRANSMIT)) = ch;
+}
 #else
 #error Board not defined
 #endif
