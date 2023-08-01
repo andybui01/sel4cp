@@ -60,7 +60,7 @@ SUPPORTED_BOARDS = (
         }
     ),
 
-        BoardInfo(
+    BoardInfo(
         name="ls1012a_frwy",
         gcc_cpu="cortex-a53",
         loader_link_address=0x96000000,
