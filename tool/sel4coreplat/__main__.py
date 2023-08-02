@@ -1495,7 +1495,8 @@ def build_system(
     # set vspace / cspace (SetSpace)
     # FIXME: badged endpoints for faulting -> root PDs eventually go here. For now set to 0.
     # invocation = Sel4TcbSetSpace(tcb_objects[0].cap_addr, badged_fault_ep, cnode_objects[0].cap_addr, kernel_config.cap_address_bits - PD_CAP_BITS, vspace_objects[0].cap_addr, 0)
-    invocation = Sel4TcbSetSpace(tcb_objects[0].cap_addr, 0, cnode_objects[0].cap_addr, kernel_config.cap_address_bits - PD_CAP_BITS, vspace_objects[0].cap_addr, 0)
+    # TODO: this badged_fault_ep should just be a temporary one that gets destructed on the way out of the sysinit thread
+    invocation = Sel4TcbSetSpace(tcb_objects[0].cap_addr, badged_fault_ep, cnode_objects[0].cap_addr, kernel_config.cap_address_bits - PD_CAP_BITS, vspace_objects[0].cap_addr, 0)
     invocation.repeat(len(system.protection_domains), tcb=1, fault_ep=1, cspace_root=1, vspace_root=1)
     system_invocations.append(invocation)
 
