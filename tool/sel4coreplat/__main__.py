@@ -162,6 +162,7 @@ MONITOR_EP_CAP_IDX = 5
 BASE_OUTPUT_NOTIFICATION_CAP = 10
 BASE_OUTPUT_ENDPOINT_CAP = BASE_OUTPUT_NOTIFICATION_CAP + 64
 BASE_IRQ_CAP = BASE_OUTPUT_ENDPOINT_CAP + 64
+BASE_TCB_CAP = BASE_IRQ_CAP + 64
 MAX_SYSTEM_INVOCATION_SIZE = mb(128)
 PD_CAPTABLE_BITS = 12
 PD_CAP_SIZE = 256
@@ -589,7 +590,7 @@ class Region:
     addr: int
     data: bytearray
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"<Region name={self.name} addr=0x{self.addr:x} size={len(self.data)}>"
 
 
@@ -601,7 +602,6 @@ class BuiltSystem:
     system_invocations: List[Sel4Invocation]
     kernel_boot_info: KernelBootInfo
     reserved_region: MemoryRegion
-    reply_cap_address: int
     cap_lookup: Dict[int, str]
     tcb_caps: List[int]
     sched_caps: List[int]
@@ -1091,20 +1091,11 @@ def build_system(
     schedcontext_caps = [sc.cap_addr for sc in schedcontext_objects]
     reply_names = [f"Reply: PD={pd.name}" for pd in system.protection_domains]
     reply_objects = init_system.allocate_objects(SEL4_REPLY_OBJECT, reply_names)
-    reply_object = reply_objects[0]
-    # FIXME: Probably only need reply objects for PPs
-    pd_reply_objects = reply_objects[1:]
-
-    # there is no system monitor anymore, and root PDs become _optional_, so the
-    # need for endpoints is dependent on:
-    # - if PDs have PPs
-    # - if a root PD is setup
-    pp_protection_domains = [pd for pd in system.protection_domains if pd.pp]
-    if len(pp_protection_domains) > 0:
-        endpoint_names = [f"EP: PD={pd.name}" for pd in pp_protection_domains]
-        endpoint_objects = init_system.allocate_objects(SEL4_ENDPOINT_OBJECT, endpoint_names)
-        pp_ep_endpoint_objects = dict(zip(pp_protection_domains, endpoint_objects[1:]))
-
+    pd_reply_objects = reply_objects
+    pds_with_endpoints = [pd for pd in system.protection_domains if pd.needs_ep]
+    endpoint_names = [f"EP: PD={pd.name}" for pd in pds_with_endpoints]
+    endpoint_objects = init_system.allocate_objects(SEL4_ENDPOINT_OBJECT, endpoint_names)
+    pd_endpoint_objects = dict(zip(pds_with_endpoints, endpoint_objects))
     notification_names = [f"Notification: PD={pd.name}" for pd in system.protection_domains]
     notification_objects = init_system.allocate_objects(SEL4_NOTIFICATION_OBJECT, notification_names)
     notification_objects_by_pd = dict(zip(system.protection_domains, notification_objects))
@@ -1261,18 +1252,41 @@ def build_system(
             badged_irq_caps[pd].append(badged_cap_address)
             cap_slot += 1
 
-    # set up badged endpoints for monitors, one for each PD. FIXME: remove completely after root PDs integrated
-    # invocation = Sel4CnodeMint(system_cnode_cap, cap_slot, system_cnode_bits, root_cnode_cap, fault_ep_endpoint_object.cap_addr, kernel_config.cap_address_bits, SEL4_RIGHTS_ALL, 1)
-    # invocation.repeat(len(system.protection_domains), dest_index=1, badge=1)
-    # system_invocations.append(invocation)
-    # badged_fault_ep = system_cap_address_mask | cap_slot
-    # cap_slot += len(system.protection_domains)
+    # Create a fault endpoint cap for each protection domain.
+    # For root PDs this shall be the system fault_ep_endpoint_object.
+    # For non-root PDs this shall be the parent endpoint.
+    badged_fault_ep = system_cap_address_mask | cap_slot
+    for idx, pd in enumerate(system.protection_domains, 1):
+        is_root = pd.parent is None
+        # TODO: make the root its own fault handler
+        if is_root:
+            fault_ep_cap = pd_endpoint_objects[pd].cap_addr
+            badge = (1 << 62)
+        else:
+            assert pd.pd_id is not None
+            assert pd.parent is not None
+            assert pd.pd_id != 0
+            fault_ep_cap = pd_endpoint_objects[pd.parent].cap_addr
+            badge =  (1 << 62) | pd.pd_id # TODO: what dis
+
+        invocation = Sel4CnodeMint(
+            system_cnode_cap,
+            cap_slot,
+            system_cnode_bits,
+            root_cnode_cap,
+            fault_ep_cap,
+            kernel_config.cap_address_bits,
+            SEL4_RIGHTS_ALL,
+            badge
+        )
+        system_invocations.append(invocation)
+        cap_slot += 1
 
     final_cap_slot = cap_slot
 
     ## Minting in the address space
     for pd, notification_obj, cnode_obj in zip(system.protection_domains, notification_objects, cnode_objects):
-        obj = pp_ep_endpoint_objects[pd] if pd.pp else notification_obj
+        obj = pd_endpoint_objects[pd] if pd.needs_ep else notification_obj
         assert INPUT_CAP_IDX < PD_CAP_SIZE
         system_invocations.append(
             Sel4CnodeMint(
@@ -1314,6 +1328,23 @@ def build_system(
                     0)
             )
 
+    ## Mint access to the child TCB in the PD Cspace
+    for cnode_obj, pd in zip(cnode_objects, system.protection_domains):
+        for maybe_child_tcb, maybe_child_pd in zip(tcb_objects, system.protection_domains):
+            if maybe_child_pd.parent is pd:
+                cap_idx = BASE_TCB_CAP + maybe_child_pd.pd_id
+                system_invocations.append(
+                    Sel4CnodeMint(
+                        cnode_obj.cap_addr,
+                        cap_idx,
+                        PD_CAP_BITS,
+                        root_cnode_cap,
+                        maybe_child_tcb.cap_addr,
+                        kernel_config.cap_address_bits,
+                        SEL4_RIGHTS_ALL,
+                        0)
+                )
+
     for cc in system.channels:
         pd_a = system.pd_by_name[cc.pd_a]
         pd_b = system.pd_by_name[cc.pd_b]
@@ -1321,8 +1352,8 @@ def build_system(
         pd_b_cnode_obj = cnode_objects_by_pd[pd_b]
         pd_a_notification_obj = notification_objects_by_pd[pd_a]
         pd_b_notification_obj = notification_objects_by_pd[pd_b]
-        pd_a_endpoint_obj = pp_ep_endpoint_objects.get(pd_a)
-        pd_b_endpoint_obj = pp_ep_endpoint_objects.get(pd_b)
+        pd_a_endpoint_obj = pd_endpoint_objects.get(pd_a)
+        pd_b_endpoint_obj = pd_endpoint_objects.get(pd_b)
 
         # Set up the notification baps
         pd_a_cap_idx = BASE_OUTPUT_NOTIFICATION_CAP + cc.id_a
@@ -1464,7 +1495,8 @@ def build_system(
     # set vspace / cspace (SetSpace)
     # FIXME: badged endpoints for faulting -> root PDs eventually go here. For now set to 0.
     # invocation = Sel4TcbSetSpace(tcb_objects[0].cap_addr, badged_fault_ep, cnode_objects[0].cap_addr, kernel_config.cap_address_bits - PD_CAP_BITS, vspace_objects[0].cap_addr, 0)
-    invocation = Sel4TcbSetSpace(tcb_objects[0].cap_addr, 0, cnode_objects[0].cap_addr, kernel_config.cap_address_bits - PD_CAP_BITS, vspace_objects[0].cap_addr, 0)
+    # TODO: this badged_fault_ep should just be a temporary one that gets destructed on the way out of the sysinit thread
+    invocation = Sel4TcbSetSpace(tcb_objects[0].cap_addr, badged_fault_ep, cnode_objects[0].cap_addr, kernel_config.cap_address_bits - PD_CAP_BITS, vspace_objects[0].cap_addr, 0)
     invocation.repeat(len(system.protection_domains), tcb=1, fault_ep=1, cspace_root=1, vspace_root=1)
     system_invocations.append(invocation)
 
@@ -1544,7 +1576,6 @@ def build_system(
         system_invocations = system_invocations,
         kernel_boot_info = kernel_boot_info,
         reserved_region = reserved_region,
-        reply_cap_address = reply_object.cap_addr,
         cap_lookup = cap_address_names,
         tcb_caps = tcb_caps,
         sched_caps = schedcontext_caps,
