@@ -175,6 +175,9 @@ class SystemDescription:
                 raise UserError(f"Duplicate partition name '{pt.name}'.")
             self.pt_by_name[pt.name] = pt
 
+            # identifying endpoints cost 1 bit in the badge
+            # therefore notifications are capped at 63 unique identifiers (the bits cannot overlap)
+            # which is where this limit comes from
             if len(pt.protection_domains) > 63:
                 raise UserError(f"Too many protection domains ({len(self.protection_domains)}) defined. Maximum is 63.")
 
@@ -459,10 +462,10 @@ def xml2system(filename: Path, plat_desc: PlatformDescription) -> SystemDescript
         except MissingAttribute as e:
             raise UserError(f"Error: Missing required attribute '{e.attribute_name}' on element '{e.element.tag}': {e.element._loc_str}")  # type: ignore
         
-        if len(partitions) == 0 and len(protection_domains) > 0:
-            partitions.append(Partition("default", 1, tuple(protection_domains)))
-        elif len(partitions) == 0 and len(protection_domains) == 0:
-            raise UserError("Error: Specify at least one partition or protection_domain")
+    if len(partitions) == 0 and len(protection_domains) > 0:
+        partitions.append(Partition("default", 1, tuple(protection_domains)))
+    elif len(partitions) == 0 and len(protection_domains) == 0:
+        raise UserError("Error: Specify at least one partition or protection_domain")
     
     return SystemDescription(
         memory_regions=memory_regions,

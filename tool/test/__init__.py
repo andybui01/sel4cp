@@ -139,8 +139,8 @@ class SystemParseTests(ExtendedTestCase):
     def test_channel_duplicate_b_id(self):
         self._check_error("sys_channel_duplicate_b_id.xml", "duplicate channel id: 5 in protection domain: 'test2' @")
 
-    def test_no_protection_domains(self):
-        self._check_error("sys_no_protection_domains.xml", "At least one protection domain must be defined")
+    def test_no_partitions_or_protection_domains(self):
+        self._check_error("sys_no_pd_or_pt.xml", "Error: Specify at least one partition or protection_domain")
 
     def test_text_elements(self):
         self._check_error("sys_text_elements.xml", "Error: unexpected text found in element 'system' @")
