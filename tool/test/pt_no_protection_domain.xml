@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+ Copyright 2021, Breakaway Consulting Pty. Ltd.
+
+ SPDX-License-Identifier: BSD-2-Clause
+-->
+<system>
+    <partition name="testa" length="1">
+        <protection_domain name="pd"><program_image path="foo" /></protection_domain>
+    </partition>
+    <partition name="testb" length="1">
+    </partition>
+</system>

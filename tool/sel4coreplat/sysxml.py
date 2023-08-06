@@ -397,12 +397,15 @@ def xml2partition(pt_xml: ET.Element) -> Partition:
 
     _check_attrs(pt_xml, ("name", "length"))
     name = checked_lookup(pt_xml, "name")
-    length = int(pt_xml.attrib.get("length"), base=0)
+    length = int(checked_lookup(pt_xml, "length"))
     protection_domains = []
 
     # FIXME @andyb: this is temporary until we can determine sane lengths to set for domains
-    if length < 0 or length > 254:
-        raise ValueError("length must be between 0 and 254")
+    if length < 1 or length > 254:
+        raise ValueError("length must be between 1 and 254")
+    
+    if len(pt_xml) == 0:
+        raise UserError(f"Error: Partition '{name}' has no protection domains")
     
     for child in pt_xml:
         try:

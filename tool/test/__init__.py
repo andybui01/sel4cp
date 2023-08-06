@@ -153,3 +153,19 @@ class SystemParseTests(ExtendedTestCase):
 
     def test_too_many_pds(self):
         self._check_error("sys_too_many_pds.xml", "Too many protection domains (64) defined. Maximum is 63.")
+
+class PartitionParseTests(ExtendedTestCase):
+    def test_missing_name(self):
+        self._check_missing("pt_missing_name.xml", "name", "partition")
+
+    def test_missing_length(self):
+        self._check_missing("pt_missing_length.xml", "length", "partition")
+    
+    def test_no_protection_domains(self):
+        self._check_error("pt_no_protection_domain.xml", "Error: Partition 'testb' has no protection domains")
+
+    def test_length_less_than_1(self):
+        self._check_error("pt_length_less_than_1.xml", "Error: length must be between 1 and 254 on element 'partition'")
+
+    def test_length_greater_than_254(self):
+        self._check_error("pt_length_greater_than_254.xml", "Error: length must be between 1 and 254 on element 'partition'")
