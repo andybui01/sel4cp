@@ -167,7 +167,7 @@ MAX_SYSTEM_INVOCATION_SIZE = mb(128)
 PD_CAPTABLE_BITS = 12
 PD_CAP_SIZE = 256
 PD_CAP_BITS = int(log2(PD_CAP_SIZE))
-PD_SCHEDCONTEXT_SIZE = (1 << 8)
+PD_SCHEDCONTEXT_SIZE = (1 << 8) # Maximum number of refills in a single schedulign context
 
 
 def mr_page_bytes(mr: SysMemoryRegion) -> int:
@@ -1081,7 +1081,11 @@ def build_system(
         name = f"{obj_type_name}: MR={mr.name} @ {phys_addr:x}"
         page = init_system.allocate_fixed_objects(phys_addr, obj_type, 1, names=[name])[0]
         mr_pages[mr].append(page)
-
+    
+    # Order of system CNode:
+    # TCB -> SC -> Reply Objs -> Endpoints (for PDs that have an EP) -> Ntfn
+    # These caps are laid out sequentially in the CNode in order to make use of
+    # "repeating" invocations, which saves the final image memory usage.
     tcb_names = [f"TCB: PD={pd.name}" for pd in system.protection_domains]
     tcb_objects = init_system.allocate_objects(SEL4_TCB_OBJECT, tcb_names)
     tcb_caps = [tcb_obj.cap_addr for tcb_obj in tcb_objects]
@@ -1100,6 +1104,20 @@ def build_system(
     notification_objects = init_system.allocate_objects(SEL4_NOTIFICATION_OBJECT, notification_names)
     notification_objects_by_pd = dict(zip(system.protection_domains, notification_objects))
     notification_caps = [ntfn.cap_addr for ntfn in notification_objects]
+
+    # PDs that have control of empty threads
+    pds_with_threads = [pd for pd in system.protection_domains if pd.threads > 0]
+    empty_threads_tcbs = {}
+    empty_threads_tcbs_caps = {}
+    empty_threads_sc = {}
+    empty_threads_sc_caps = {}
+    for pd in pds_with_threads:
+        empty_threads_tcbs_names = [f"Thread TCB: PD={pd.name} #{i}" for i in range(pd.threads)]
+        empty_threads_tcbs[pd] = init_system.allocate_objects(SEL4_TCB_OBJECT, empty_threads_tcbs_names)
+        empty_threads_tcbs_caps[pd] = [tcb.cap_addr for tcb in empty_threads_tcbs[pd]]
+        empty_threads_sc_names = [f"Thread SC: PD={pd.name} #{i}" for i in range(pd.threads)]
+        empty_threads_sc[pd] = init_system.allocate_objects(SEL4_SCHEDCONTEXT_OBJECT, empty_threads_sc_names, size=PD_SCHEDCONTEXT_SIZE)
+        empty_threads_sc_caps[pd] = [sc.cap_addr for sc in empty_threads_sc[pd]]
 
     # Determine number of upper directory / directory / page table objects required
     #
@@ -1142,7 +1160,7 @@ def build_system(
         ds += [(pd_idx, vaddr) for vaddr in sorted(directory_vaddrs)]
         pts += [(pd_idx, vaddr) for vaddr in sorted(page_table_vaddrs)]
 
-    pd_names = [pd.name for p in system.protection_domains]
+    pd_names = [pd.name for pd in system.protection_domains]
     vspace_names = [f"VSpace: PD={pd.name}" for pd in system.protection_domains]
 
     vspace_objects = init_system.allocate_objects(SEL4_VSPACE_OBJECT, vspace_names)
@@ -1187,7 +1205,8 @@ def build_system(
     # for vspace_obj in vspace_objects:
     #     system_invocations.append(Sel4AsidPoolAssign(INIT_ASID_POOL_CAP_ADDRESS, vspace_obj.cap_addr))
     invocation = Sel4AsidPoolAssign(INIT_ASID_POOL_CAP_ADDRESS, vspace_objects[0].cap_addr)
-    invocation.repeat(len(system.protection_domains), vspace=1)
+    assert len(vspace_objects) == len(system.protection_domains)
+    invocation.repeat(len(vspace_objects), vspace=1)
     system_invocations.append(invocation)
 
     # Create copies of all caps required via minting.
@@ -1552,6 +1571,12 @@ def build_system(
         # Could use pd.elf_file.write_symbol here to update variables if required.
         pd_elf_files[pd].write_symbol("sel4cp_name", pack("<16s", pd.name.encode("utf8")))
         pd_elf_files[pd].write_symbol("passive", pack("?", pd.passive))
+
+    for pd in pds_with_threads:
+        _tcb_caps = empty_threads_tcbs_caps[pd]
+        _sc_caps = empty_threads_sc_caps[pd]
+        pd_elf_files[pd].write_symbol("thread_tcbs", pack("<Q" + "Q" * len(_tcb_caps), 0, *_tcb_caps))
+        pd_elf_files[pd].write_symbol("thread_sc", pack("<Q" + "Q" * len(_sc_caps), 0, *_sc_caps))
 
     for pd in system.protection_domains:
         for setvar in pd.setvars:

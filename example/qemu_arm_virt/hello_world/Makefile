@@ -27,7 +27,8 @@ IMAGE_FILE = $(BUILD_DIR)/loader.img
 REPORT_FILE = $(BUILD_DIR)/report.txt
 
 # List of partition directories
-PARTITIONS := hello world
+# @andyb: just list of elf directories...
+PARTITIONS := hello world os
 
 # Idea right now is to invoke the sel4cp tool on the root level .system
 # file of the project (hello_world.system in this case). The sel4cp tool
@@ -50,3 +51,4 @@ images:
 	mkdir -p $(addprefix $(BUILD_DIR)/, $(PARTITIONS))
 	$(MAKE) -C hello
 	$(MAKE) -C world
+	$(MAKE) -C os
