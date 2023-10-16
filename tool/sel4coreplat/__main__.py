@@ -1109,6 +1109,16 @@ def build_system(
     notification_objects_by_pd = dict(zip(system.protection_domains, notification_objects))
     notification_caps = [ntfn.cap_addr for ntfn in notification_objects]
 
+    # PDs with children
+    pd_children = {
+        pd: []
+        for pd in system.protection_domains
+    }
+    for pd in system.protection_domains:
+        for maybe_child_pd in system.protection_domains:
+            if maybe_child_pd.parent is pd:
+                pd_children[pd].append(maybe_child_pd)
+
     # PDs that have control of empty threads
     pds_with_threads = [pd for pd in system.protection_domains if pd.threads > 0]
     empty_threads_tcbs = {}
@@ -1168,6 +1178,7 @@ def build_system(
     vspace_names = [f"VSpace: PD={pd.name}" for pd in system.protection_domains]
 
     vspace_objects = init_system.allocate_objects(SEL4_VSPACE_OBJECT, vspace_names)
+    vspace_objects_by_pd = dict(zip(system.protection_domains, vspace_objects))
 
     ud_names = [f"PageUpperDirectory: PD={pd_names[pd_idx]} VADDR=0x{vaddr:x}" for pd_idx, vaddr in uds]
     ud_objects = init_system.allocate_objects(SEL4_PAGE_UPPER_DIRECTORY_OBJECT, ud_names)
@@ -1581,6 +1592,22 @@ def build_system(
         _sc_caps = empty_threads_sc_caps[pd]
         pd_elf_files[pd].write_symbol("thread_tcbs", pack("<Q" + "Q" * len(_tcb_caps), 0, *_tcb_caps))
         pd_elf_files[pd].write_symbol("thread_sc", pack("<Q" + "Q" * len(_sc_caps), 0, *_sc_caps))
+
+
+    
+    # Now patch in VSpace CPtrs to root PDs
+    for pd in system.protection_domains:
+        if len(pd_children[pd]) == 0:
+            continue
+        print(f"patching vspace data for {pd.name}")
+        _data = [0] * len(pd_children[pd])
+        for child_pd in pd_children[pd]:
+            child_id = child_pd.pd_id
+            _vspace_cap = vspace_objects_by_pd[child_pd].cap_addr
+            _data[child_id - 1] = _vspace_cap # minus 1 because pd_ids are 1-indexed
+
+        pd_elf_files[pd].write_symbol("pd_vspace", pack("<Q" + "Q" * len(_data), 0, *_data))
+
 
     for pd in system.protection_domains:
         for setvar in pd.setvars:
