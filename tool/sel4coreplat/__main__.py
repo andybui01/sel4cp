@@ -167,7 +167,11 @@ MAX_SYSTEM_INVOCATION_SIZE = mb(128)
 PD_CAPTABLE_BITS = 12
 PD_CAP_SIZE = 256
 PD_CAP_BITS = int(log2(PD_CAP_SIZE))
-PD_SCHEDCONTEXT_SIZE = (1 << 8) # Maximum number of refills in a single schedulign context
+PD_SCHEDCONTEXT_SIZE = (1 << 8) # Maximum number of refills in a single scheduling context
+
+# Set the top bit to signify that we are receiving on an endpoint and not a ntfn
+EP_MASK_BIT = 63
+FAULT_EP_MASK_BIT = 62
 
 
 def mr_page_bytes(mr: SysMemoryRegion) -> int:
@@ -1280,13 +1284,13 @@ def build_system(
         # TODO: make the root its own fault handler
         if is_root:
             fault_ep_cap = pd_endpoint_objects[pd].cap_addr
-            badge = (1 << 62)
+            badge = (1 << FAULT_EP_MASK_BIT)
         else:
             assert pd.pd_id is not None
             assert pd.parent is not None
             assert pd.pd_id != 0
             fault_ep_cap = pd_endpoint_objects[pd.parent].cap_addr
-            badge =  (1 << 62) | pd.pd_id # TODO: what dis
+            badge =  (1 << FAULT_EP_MASK_BIT) | pd.pd_id
 
         invocation = Sel4CnodeMint(
             system_cnode_cap,
@@ -1374,7 +1378,7 @@ def build_system(
         pd_a_endpoint_obj = pd_endpoint_objects.get(pd_a)
         pd_b_endpoint_obj = pd_endpoint_objects.get(pd_b)
 
-        # Set up the notification baps
+        # Set up the notification caps
         pd_a_cap_idx = BASE_OUTPUT_NOTIFICATION_CAP + cc.id_a
         pd_a_badge = 1 << cc.id_b
         #pd_a.cnode.mint(pd_a_cap_idx, PD_CAPTABLE_BITS, sel4.init_cnode, pd_b.notification, 64, SEL4_RIGHTS_ALL, pd_a_badge)

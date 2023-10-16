@@ -14,13 +14,15 @@
 
 #define INPUT_CAP 1
 #define REPLY_CAP 4
-
 #define UNBIND_SC_LABEL 0
 
 #define NOTIFICATION_BITS 57
 
-#define PD_MASK 0xff
-#define CHANNEL_MASK 0x3f
+#define EP_MASK_BIT         63
+#define FAULT_EP_MASK_BIT   62
+
+#define PD_MASK         0xff
+#define CHANNEL_MASK    0x3f
 
 char _stack[4096]  __attribute__((__aligned__(16)));
 
@@ -73,8 +75,8 @@ handler_loop(void)
             tag = seL4_Recv(INPUT_CAP, &badge, REPLY_CAP);
         }
 
-        uint64_t is_endpoint = badge >> 63;
-        uint64_t is_fault = (badge >> 62) & 1;
+        uint64_t is_endpoint = badge >> EP_MASK_BIT;
+        uint64_t is_fault = (badge >> FAULT_EP_MASK_BIT) & 1;
 
         have_reply = false;
 
