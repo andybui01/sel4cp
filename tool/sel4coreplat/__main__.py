@@ -164,10 +164,12 @@ BASE_OUTPUT_ENDPOINT_CAP = BASE_OUTPUT_NOTIFICATION_CAP + 64
 BASE_IRQ_CAP = BASE_OUTPUT_ENDPOINT_CAP + 64
 BASE_TCB_CAP = BASE_IRQ_CAP + 64
 MAX_SYSTEM_INVOCATION_SIZE = mb(128)
-PD_CAPTABLE_BITS = 12
+PD_CAPTABLE_BITS = 12 # TODO: remove this
 PD_CAP_SIZE = 256
 PD_CAP_BITS = int(log2(PD_CAP_SIZE))
 PD_SCHEDCONTEXT_SIZE = (1 << 8) # Maximum number of refills in a single scheduling context
+EMPTY_THREAD_CAP_SIZE = 4
+EMPTY_THREAD_CAP_BITS = int(log2(EMPTY_THREAD_CAP_SIZE))
 
 # Set the top bit to signify that we are receiving on an endpoint and not a ntfn
 EP_MASK_BIT = 63
@@ -1119,20 +1121,6 @@ def build_system(
             if maybe_child_pd.parent is pd:
                 pd_children[pd].append(maybe_child_pd)
 
-    # PDs that have control of empty threads
-    pds_with_threads = [pd for pd in system.protection_domains if pd.threads > 0]
-    empty_threads_tcbs = {}
-    empty_threads_tcbs_caps = {}
-    empty_threads_sc = {}
-    empty_threads_sc_caps = {}
-    for pd in pds_with_threads:
-        empty_threads_tcbs_names = [f"Thread TCB: PD={pd.name} #{i}" for i in range(pd.threads)]
-        empty_threads_tcbs[pd] = init_system.allocate_objects(SEL4_TCB_OBJECT, empty_threads_tcbs_names)
-        empty_threads_tcbs_caps[pd] = [tcb.cap_addr for tcb in empty_threads_tcbs[pd]]
-        empty_threads_sc_names = [f"Thread SC: PD={pd.name} #{i}" for i in range(pd.threads)]
-        empty_threads_sc[pd] = init_system.allocate_objects(SEL4_SCHEDCONTEXT_OBJECT, empty_threads_sc_names, size=PD_SCHEDCONTEXT_SIZE)
-        empty_threads_sc_caps[pd] = [sc.cap_addr for sc in empty_threads_sc[pd]]
-
     # Determine number of upper directory / directory / page table objects required
     #
     # Upper directory (level 3 table) is based on how many 512 GiB parts of the address
@@ -1189,10 +1177,32 @@ def build_system(
     pt_names = [f"PageTable: PD={pd_names[pd_idx]} VADDR=0x{vaddr:x}" for pd_idx, vaddr in pts]
     pt_objects = init_system.allocate_objects(SEL4_PAGE_TABLE_OBJECT, pt_names)
 
-    # Create CNodes - all CNode objects are the same size: 128 slots.
+    # Create PD CNodes - all CNode objects for PDs are the same size: 128 slots.
     cnode_names = [f"CNode: PD={pd.name}" for pd in system.protection_domains]
     cnode_objects = init_system.allocate_objects(SEL4_CNODE_OBJECT, cnode_names, size=PD_CAP_SIZE)
     cnode_objects_by_pd = dict(zip(system.protection_domains, cnode_objects))
+
+    # PDs that have control of empty threads
+    pds_with_threads = [pd for pd in system.protection_domains if pd.threads > 0]
+    threads_tcbs = {}
+    threads_tcbs_caps = {}
+    threads_sc = {}
+    threads_sc_caps = {}
+    threads_cnodes = {}
+    for pd in pds_with_threads:
+        # Create empty thread TCBs
+        threads_tcbs_names = [f"Thread TCB: PD={pd.name} #{i}" for i in range(pd.threads)]
+        threads_tcbs[pd] = init_system.allocate_objects(SEL4_TCB_OBJECT, threads_tcbs_names)
+        threads_tcbs_caps[pd] = [tcb.cap_addr for tcb in threads_tcbs[pd]]
+
+        # Create empty thread Scheduling Contexts
+        threads_sc_names = [f"Thread SC: PD={pd.name} #{i}" for i in range(pd.threads)]
+        threads_sc[pd] = init_system.allocate_objects(SEL4_SCHEDCONTEXT_OBJECT, threads_sc_names, size=PD_SCHEDCONTEXT_SIZE)
+        threads_sc_caps[pd] = [sc.cap_addr for sc in threads_sc[pd]]
+
+        # Create empty thread CNodes - they are all 4 slots for now.
+        threads_cnode_names = [f"Thread CNode: PD={pd.name} #{i}" for i in range(pd.threads)]
+        threads_cnodes[pd] = init_system.allocate_objects(SEL4_CNODE_OBJECT, threads_cnode_names, size=EMPTY_THREAD_CAP_SIZE)
 
     cap_slot = init_system._cap_slot
 
@@ -1588,8 +1598,8 @@ def build_system(
         pd_elf_files[pd].write_symbol("passive", pack("?", pd.passive))
 
     for pd in pds_with_threads:
-        _tcb_caps = empty_threads_tcbs_caps[pd]
-        _sc_caps = empty_threads_sc_caps[pd]
+        _tcb_caps = threads_tcbs_caps[pd]
+        _sc_caps = threads_sc_caps[pd]
         pd_elf_files[pd].write_symbol("thread_tcbs", pack("<Q" + "Q" * len(_tcb_caps), 0, *_tcb_caps))
         pd_elf_files[pd].write_symbol("thread_sc", pack("<Q" + "Q" * len(_sc_caps), 0, *_sc_caps))
 
