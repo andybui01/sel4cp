@@ -152,16 +152,20 @@ SYSINIT_CONFIG = SysinitConfig(
     system_invocation_count_symbol_name = "system_invocation_count",
 )
 
-# Will be either the notification or endpoint cap
-INPUT_CAP_IDX = 1
-FAULT_EP_CAP_IDX = 2
-VSPACE_CAP_IDX = 3
-REPLY_CAP_IDX = 4
-# FIXME: @andyb Not sysinit, monitor, make sure!
-MONITOR_EP_CAP_IDX = 5
-BASE_OUTPUT_NOTIFICATION_CAP = 10
-BASE_OUTPUT_ENDPOINT_CAP = BASE_OUTPUT_NOTIFICATION_CAP + 64
-BASE_IRQ_CAP = BASE_OUTPUT_ENDPOINT_CAP + 64
+# === PD CSpace layout ===
+# The first 4 caps will be identical in both the PD
+# and thread CSpace. This is to reduce complexity in libsel4cp.
+
+NULL_CAP = 0 # Not used anywhere, but we intentionally leave this alone
+ROOT_PD_EP_CAP_IDX = 1 # EP to communicate with the parent PD
+VSPACE_CAP_IDX = 2 # Used for cache management, leave unused for now in PDs
+
+REPLY_CAP_IDX = 5
+INPUT_CAP_IDX = 6 # Will be either the notification or endpoint cap
+
+BASE_OUTPUT_NTFN_CAP_IDX = 10
+BASE_OUTPUT_EP_CAP_IDX = BASE_OUTPUT_NTFN_CAP_IDX + 64
+BASE_IRQ_CAP = BASE_OUTPUT_EP_CAP_IDX + 64
 BASE_TCB_CAP = BASE_IRQ_CAP + 64
 MAX_SYSTEM_INVOCATION_SIZE = mb(128)
 PD_CAPTABLE_BITS = 12 # TODO: remove this
@@ -1400,7 +1404,7 @@ def build_system(
         pd_b_endpoint_obj = pd_endpoint_objects.get(pd_b)
 
         # Set up the notification caps
-        pd_a_cap_idx = BASE_OUTPUT_NOTIFICATION_CAP + cc.id_a
+        pd_a_cap_idx = BASE_OUTPUT_NTFN_CAP_IDX + cc.id_a
         pd_a_badge = 1 << cc.id_b
         #pd_a.cnode.mint(pd_a_cap_idx, PD_CAPTABLE_BITS, sel4.init_cnode, pd_b.notification, 64, SEL4_RIGHTS_ALL, pd_a_badge)
         assert pd_a_cap_idx < PD_CAP_SIZE
@@ -1416,7 +1420,7 @@ def build_system(
                 pd_a_badge)
         )
 
-        pd_b_cap_idx = BASE_OUTPUT_NOTIFICATION_CAP + cc.id_b
+        pd_b_cap_idx = BASE_OUTPUT_NTFN_CAP_IDX + cc.id_b
         pd_b_badge = 1 << cc.id_a
         #pd_b.cnode.mint(pd_b_cap_idx, PD_CAPTABLE_BITS, sel4.init_cnode, pd_a.notification, 64, SEL4_RIGHTS_ALL, pd_b_badge)
         assert pd_b_cap_idx < PD_CAP_SIZE
@@ -1434,7 +1438,7 @@ def build_system(
 
         # Set up the endpoint caps
         if pd_b.pp:
-            pd_a_cap_idx = BASE_OUTPUT_ENDPOINT_CAP + cc.id_a
+            pd_a_cap_idx = BASE_OUTPUT_EP_CAP_IDX + cc.id_a
             pd_a_badge = (1 << 63) | cc.id_b
             # pd_a.cnode.mint(pd_a_cap_idx, PD_CAPTABLE_BITS, sel4.init_cnode, pd_b.endpoint, 64, SEL4_RIGHTS_ALL, pd_a_badge)
             assert pd_b_endpoint_obj is not None
@@ -1452,7 +1456,7 @@ def build_system(
             )
 
         if pd_a.pp:
-            pd_b_cap_idx = BASE_OUTPUT_ENDPOINT_CAP + cc.id_b
+            pd_b_cap_idx = BASE_OUTPUT_EP_CAP_IDX + cc.id_b
             pd_b_badge = (1 << 63) | cc.id_a
             #pd_b.cnode.mint(pd_b_cap_idx, PD_CAPTABLE_BITS, sel4.init_cnode, pd_a.endpoint, 64, SEL4_RIGHTS_ALL, pd_b_badge)
             assert pd_a_endpoint_obj is not None

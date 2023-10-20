@@ -12,11 +12,8 @@
 
 #include <sel4cp.h>
 
-#define INPUT_CAP 1
-#define REPLY_CAP 4
+/* SYSINIT needs to handle this */
 #define UNBIND_SC_LABEL 0
-
-#define NOTIFICATION_BITS 57
 
 #define EP_MASK_BIT         63
 #define FAULT_EP_MASK_BIT   62
@@ -68,11 +65,11 @@ handler_loop(void)
         seL4_MessageInfo_t tag;
 
         if (have_reply) {
-            tag = seL4_ReplyRecv(INPUT_CAP, reply_tag, &badge, REPLY_CAP);
+            tag = seL4_ReplyRecv(INPUT_CPTR, reply_tag, &badge, REPLY_CPTR);
         } else if (have_signal) {
-            tag = seL4_NBSendRecv(signal, signal_msg, INPUT_CAP, &badge, REPLY_CAP);
+            tag = seL4_NBSendRecv(signal, signal_msg, INPUT_CPTR, &badge, REPLY_CPTR);
         } else {
-            tag = seL4_Recv(INPUT_CAP, &badge, REPLY_CAP);
+            tag = seL4_Recv(INPUT_CPTR, &badge, REPLY_CPTR);
         }
 
         uint64_t is_endpoint = badge >> EP_MASK_BIT;
@@ -114,7 +111,7 @@ main(void)
         have_signal = true;
         signal_msg = seL4_MessageInfo_new(UNBIND_SC_LABEL, 0, 0, 1);
         seL4_SetMR(0, 0);
-        signal = (MONITOR_EP);
+        signal = (SYSINIT_CPTR);
     }
 
     handler_loop();
