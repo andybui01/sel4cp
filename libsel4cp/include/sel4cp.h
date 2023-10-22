@@ -16,6 +16,7 @@
 
 typedef unsigned int sel4cp_channel;
 typedef unsigned int sel4cp_pd;
+typedef unsigned int sel4cp_tid;
 typedef seL4_MessageInfo_t sel4cp_msginfo;
 
 enum pd_cspace_caps {
@@ -42,8 +43,8 @@ enum pd_cspace_caps {
 /* User provided functions */
 void init(void);
 void notified(sel4cp_channel ch);
-sel4cp_msginfo protected(sel4cp_channel ch, sel4cp_msginfo msginfo);
-void fault(sel4cp_channel ch, sel4cp_msginfo msginfo);
+sel4cp_msginfo protected(sel4cp_channel ch, sel4cp_tid thread, sel4cp_msginfo msginfo);
+void fault(sel4cp_channel ch, sel4cp_tid thread, sel4cp_msginfo msginfo);
 
 extern char sel4cp_name[16];
 /* These next three variables are so our PDs can combine a signal with the next Recv syscall */
@@ -122,6 +123,12 @@ static inline sel4cp_msginfo
 sel4cp_ppcall(sel4cp_channel ch, sel4cp_msginfo msginfo)
 {
     return seL4_Call(BASE_OUTPUT_EP_CPTR + ch, msginfo);
+}
+
+static inline sel4cp_msginfo
+sel4cp_root_ppcall(sel4cp_msginfo msginfo)
+{
+    return seL4_Call(ROOT_PD_EP_CPTR, msginfo);
 }
 
 static inline sel4cp_msginfo

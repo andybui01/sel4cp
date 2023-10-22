@@ -18,6 +18,9 @@
 #define EP_MASK_BIT         63
 #define FAULT_EP_MASK_BIT   62
 
+#define TID_MASK        0xff
+#define BADGE_TID_BIT   8
+#define BADGE_TO_TID(x) (((x) >> BADGE_TID_BIT) & TID_MASK)
 #define PD_MASK         0xff
 #define CHANNEL_MASK    0x3f
 
@@ -36,12 +39,12 @@ seL4_IPCBuffer *__sel4_ipc_buffer = &__sel4_ipc_buffer_obj;
 extern const void (*const __init_array_start []) (void);
 extern const void (*const __init_array_end []) (void);
 
-__attribute__((weak)) sel4cp_msginfo protected(sel4cp_channel ch, sel4cp_msginfo msginfo)
+__attribute__((weak)) sel4cp_msginfo protected(sel4cp_channel ch, sel4cp_tid thread, sel4cp_msginfo msginfo)
 {
     return seL4_MessageInfo_new(0, 0, 0, 0);
 }
 
-__attribute__((weak)) void fault(sel4cp_pd pd, sel4cp_msginfo msginfo)
+__attribute__((weak)) void fault(sel4cp_pd pd, sel4cp_tid thread, sel4cp_msginfo msginfo)
 {
 }
 
@@ -78,10 +81,10 @@ handler_loop(void)
         have_reply = false;
 
         if (is_fault) {
-            fault(badge & PD_MASK, tag);
+            fault(badge & PD_MASK, BADGE_TO_TID(badge), tag);
         } else if (is_endpoint) {
             have_reply = true;
-            reply_tag = protected(badge & CHANNEL_MASK, tag);
+            reply_tag = protected(badge & CHANNEL_MASK, BADGE_TO_TID(badge), tag);
         } else {
             unsigned int idx = 0;
             do  {
