@@ -1613,7 +1613,6 @@ def build_system(
     for pd in system.protection_domains:
         if len(pd_children[pd]) == 0:
             continue
-        print(f"patching vspace data for {pd.name}")
         _data = [0] * len(pd_children[pd])
         for child_pd in pd_children[pd]:
             child_id = child_pd.pd_id

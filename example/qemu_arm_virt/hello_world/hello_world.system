@@ -21,6 +21,15 @@
         </protection_domain>
     </partition>
 
+    <!--
+        Channels for hello partition
+        @andyb: in the future we should specify channels from inside partitions
+    -->
+    <channel>
+        <end pd="os" id="0" />
+        <end pd="hello" id="0" />
+    </channel>
+
     <partition name="world" length="1">
         <protection_domain name="world" priority="254">
             <program_image path="world/world.elf" />

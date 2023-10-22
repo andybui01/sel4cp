@@ -175,17 +175,18 @@ class SystemDescription:
             if pt.name in self.pt_by_name:
                 raise UserError(f"Duplicate partition name '{pt.name}'.")
             self.pt_by_name[pt.name] = pt
-
-            # identifying endpoints cost 1 bit in the badge
-            # therefore notifications are capped at 63 unique identifiers (the bits cannot overlap)
+            
+            # @andyb: FIXME: this needs reevaluation, should we cap this here or with channels instead
+            # identifying endpoints cost 2 bits in the badge (1 for ppc and 1 for faults)
+            # therefore notifications are capped at 62 unique identifiers (the bits cannot overlap)
             # which is where this limit comes from
-            if len(pt.protection_domains) > 63:
+            if len(pt.protection_domains) > 62:
                 raise UserError(f"Too many protection domains ({len(self.protection_domains)}) defined. Maximum is 63.")
 
-            for pd in pt.protection_domains:
-                if pd.name in self.pd_by_name:
-                    raise UserError(f"Duplicate protection domain name '{pd.name}'.")
-                self.pd_by_name[pd.name] = pd
+        for pd in self.protection_domains:
+            if pd.name in self.pd_by_name:
+                raise UserError(f"Duplicate protection domain name '{pd.name}'.")
+            self.pd_by_name[pd.name] = pd
 
         for mr in memory_regions:
             if mr.name in self.mr_by_name:
