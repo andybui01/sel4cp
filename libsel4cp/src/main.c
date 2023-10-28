@@ -32,6 +32,17 @@ bool have_signal = false;
 seL4_CPtr signal;
 seL4_MessageInfo_t signal_msg;
 
+/* CSpace, VSpace, etc. caps go here. */
+#define EMPTY_THREADS (64 + 1)
+
+/* How many child PDs will this root PD support? */
+/* These symbols should only be defined for root PDs, and the number
+ * that they are configured for should be statically configured. */
+#define MAX_CHILD_PDS (1 + 1)
+seL4_Word thread_tcbs[EMPTY_THREADS];
+seL4_Word thread_sc[EMPTY_THREADS];
+seL4_Word pd_vspace[MAX_CHILD_PDS];
+
 extern seL4_IPCBuffer __sel4_ipc_buffer_obj;
 
 seL4_IPCBuffer *__sel4_ipc_buffer = &__sel4_ipc_buffer_obj;
