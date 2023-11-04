@@ -1535,7 +1535,8 @@ def build_system(
                 0
             )
         )
-
+    
+    # once we set the sched params for the SC objects, bind them to TCBs.
     for tcb_obj, schedcontext_obj, pd in zip(tcb_objects, schedcontext_objects, system.protection_domains):
         # Monitor no longer receives faults, set fault_ep to 0
         system_invocations.append(Sel4TcbSetSchedParams(tcb_obj.cap_addr, INIT_TCB_CAP_ADDRESS, pd.priority, pd.priority, schedcontext_obj.cap_addr, 0))
