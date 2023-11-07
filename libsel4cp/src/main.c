@@ -17,6 +17,7 @@
 
 #define EP_MASK_BIT         63
 #define FAULT_EP_MASK_BIT   62
+#define FAULT_EP_ROOT_BIT   61
 
 #define TID_MASK        0xff
 #define BADGE_TID_BIT   8
@@ -32,17 +33,6 @@ bool have_signal = false;
 seL4_CPtr signal;
 seL4_MessageInfo_t signal_msg;
 
-/* CSpace, VSpace, etc. caps go here. */
-#define EMPTY_THREADS (64 + 1)
-
-/* How many child PDs will this root PD support? */
-/* These symbols should only be defined for root PDs, and the number
- * that they are configured for should be statically configured. */
-#define MAX_CHILD_PDS (1 + 1)
-seL4_Word thread_tcbs[EMPTY_THREADS];
-seL4_Word thread_sc[EMPTY_THREADS];
-seL4_Word pd_vspace[MAX_CHILD_PDS];
-
 extern seL4_IPCBuffer __sel4_ipc_buffer_obj;
 
 seL4_IPCBuffer *__sel4_ipc_buffer = &__sel4_ipc_buffer_obj;
@@ -50,12 +40,12 @@ seL4_IPCBuffer *__sel4_ipc_buffer = &__sel4_ipc_buffer_obj;
 extern const void (*const __init_array_start []) (void);
 extern const void (*const __init_array_end []) (void);
 
-__attribute__((weak)) sel4cp_msginfo protected(sel4cp_channel ch, sel4cp_tid thread, sel4cp_msginfo msginfo)
+__attribute__((weak)) sel4cp_msginfo protected(sel4cp_channel ch, sel4cp_thread thread, sel4cp_msginfo msginfo)
 {
     return seL4_MessageInfo_new(0, 0, 0, 0);
 }
 
-__attribute__((weak)) void fault(sel4cp_pd pd, sel4cp_tid thread, sel4cp_msginfo msginfo)
+__attribute__((weak)) void fault(sel4cp_pd pd, sel4cp_thread thread, sel4cp_msginfo msginfo)
 {
 }
 
@@ -92,6 +82,11 @@ handler_loop(void)
         have_reply = false;
 
         if (is_fault) {
+            if ((badge >> FAULT_EP_ROOT_BIT) & 1) {
+                /* Fault came from root pd, abort for now */
+                abort();
+            }
+
             fault(badge & PD_MASK, BADGE_TO_TID(badge), tag);
         } else if (is_endpoint) {
             have_reply = true;

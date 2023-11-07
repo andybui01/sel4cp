@@ -10,10 +10,10 @@
         <!-- OS/Health Monitor -->
         <protection_domain name="os" priority="254">
             <program_image path="os/os.elf" />
-            <threads n="66" /> <!-- 64 user threads + 2 for the OS -->
+            <threads/> 
 
             <!-- User application -->
-            <protection_domain name="hello" priority="200" pd_id="1">
+            <protection_domain name="hello" priority="200" pd_id="0">
                 <!-- Path to image of the user processes, this will contain the entry
                      point for the user application. -->
                 <program_image path="hello/hello.elf" />

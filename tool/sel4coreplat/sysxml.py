@@ -87,6 +87,7 @@ class ProtectionDomain:
     budget: int
     period: int
     threads: int
+    num_child_pds: int
     pp: bool
     passive: bool
     program_image: Path
@@ -100,6 +101,10 @@ class ProtectionDomain:
     @property
     def needs_ep(self) -> bool:
         return self.pp or self.parent is None
+
+    @property
+    def __lt__(self, other):
+        return self.pd_id < other.pd_id
 
 
 @dataclass(frozen=True, eq=True)
@@ -291,10 +296,11 @@ def xml2pd(pd_xml: ET.Element, is_child: bool=False) -> ProtectionDomain:
     pd_id = None
     if is_child:
         pd_id = int(checked_lookup(pd_xml, "pd_id"), base=0)
-        if pd_id <= 0 or pd_id > 255:
-            raise ValueError("pd_id must be between 1 and 255")
+        if pd_id < 0 or pd_id > 255:
+            raise ValueError("pd_id must be between 0 and 255")
     else:
-        pd_id = 0
+        # root pd_ids are temporary and not actually used
+        pd_id = 256
 
     if budget > period:
         raise ValueError(f"budget ({budget}) must be less than, or equal to, period ({period})")
@@ -359,6 +365,12 @@ def xml2pd(pd_xml: ET.Element, is_child: bool=False) -> ProtectionDomain:
 
     if program_image is None:
         raise ValueError("program_image must be specified")
+    
+    # validate child pd pd_ids
+    child_pds_sorted = child_pds.sort()
+    for i in range(len(child_pds)):
+        if i != child_pds_sorted[i].pd_id:
+            raise UserError("Child pd_ids should be sequential from 0")
 
     return ProtectionDomain(
         pd_id,
@@ -367,6 +379,7 @@ def xml2pd(pd_xml: ET.Element, is_child: bool=False) -> ProtectionDomain:
         budget,
         period,
         threads,
+        len(child_pds),
         pp,
         passive,
         program_image,
