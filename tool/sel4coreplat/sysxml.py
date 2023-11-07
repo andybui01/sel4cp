@@ -86,7 +86,7 @@ class ProtectionDomain:
     priority: int
     budget: int
     period: int
-    threads: int
+    threads: bool
     num_child_pds: int
     pp: bool
     passive: bool
@@ -312,7 +312,7 @@ def xml2pd(pd_xml: ET.Element, is_child: bool=False) -> ProtectionDomain:
     irqs = []
     setvars = []
     child_pds = []
-    threads = 0
+    threads = False
     for child in pd_xml:
         try:
             if child.tag == "program_image":
@@ -354,10 +354,7 @@ def xml2pd(pd_xml: ET.Element, is_child: bool=False) -> ProtectionDomain:
             elif child.tag == "threads":
                 if is_child:
                     raise UserError(f"PD {name} attempting to assign threads to a PD that is child PD")
-                _check_attrs(child, ("threads", "n"))
-                threads = int(checked_lookup(child, "n"), base=0)
-                if threads < 0:
-                    raise ValueError("threads[n] must be >= 0")
+                threads = True
             else:
                 raise UserError(f"Invalid XML element '{child.tag}': {child._loc_str}")  # type: ignore
         except ValueError as e:

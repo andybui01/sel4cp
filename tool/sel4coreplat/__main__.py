@@ -1193,22 +1193,22 @@ def build_system(
     cnode_objects_by_pd = dict(zip(system.protection_domains, cnode_objects))
 
     # PDs that have control of empty threads
-    pds_with_threads = [pd for pd in system.protection_domains if pd.threads > 0]
+    pds_with_threads = [pd for pd in system.protection_domains if pd.threads]
     threads_tcbs = {}
     threads_sc = {}
     threads_cnodes = {}
     threads_vspaces = {}
     for pd in pds_with_threads:
         # Create empty thread TCBs
-        threads_tcbs_names = [f"Thread TCB: PD={pd.name} #{i}" for i in range(pd.threads)]
+        threads_tcbs_names = [f"Thread TCB: PD={pd.name} #{i}" for i in range(MAX_USER_THREADS)]
         threads_tcbs[pd] = init_system.allocate_objects(SEL4_TCB_OBJECT, threads_tcbs_names)
 
         # Create empty thread Scheduling Contexts
-        threads_sc_names = [f"Thread SC: PD={pd.name} #{i}" for i in range(pd.threads)]
+        threads_sc_names = [f"Thread SC: PD={pd.name} #{i}" for i in range(MAX_USER_THREADS)]
         threads_sc[pd] = init_system.allocate_objects(SEL4_SCHEDCONTEXT_OBJECT, threads_sc_names, size=PD_SCHEDCONTEXT_SIZE)
 
         # Create empty thread CNodes - they are all 4 slots for now.
-        threads_cnode_names = [f"Thread CNode: PD={pd.name} #{i}" for i in range(pd.threads)]
+        threads_cnode_names = [f"Thread CNode: PD={pd.name} #{i}" for i in range(MAX_USER_THREADS)]
         threads_cnodes[pd] = init_system.allocate_objects(SEL4_CNODE_OBJECT, threads_cnode_names, size=EMPTY_THREAD_CAP_SIZE)
 
         # Collect VSpaces of child PDs
