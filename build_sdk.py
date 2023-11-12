@@ -259,10 +259,15 @@ def build_lib_component(
     board: BoardInfo,
     config: ConfigInfo,
 ) -> None:
-    """Build a specific library component.
+    """Build a specific library component."""
+    lib_name = component_name
+    if component_name[0:3] == "lib":
+        lib_name = component_name[3:]
+    else:
+        raise Exception(
+            f"Error building: '{component_name}' oops things are fragile, we can't handle any libs that don't start with lib..."
+        )
 
-    Right now this is just libsel4.a
-    """
     sel4_dir = root_dir / "board" / board.name / config.name
     build_dir = build_dir / board.name / config.name / component_name
     build_dir.mkdir(exist_ok=True, parents=True)
@@ -282,13 +287,14 @@ def build_lib_component(
     dest.chmod(0o444)
 
 
-    link_script = Path(component_name) / "sel4cp.ld"
-    dest = lib_dir / "sel4cp.ld"
+    link_script = Path(component_name) / f"{lib_name}.ld"
+    dest = lib_dir / f"{lib_name}.ld"
     dest.unlink(missing_ok=True)
     copy(link_script, dest)
     # Make output read-only
     dest.chmod(0o444)
 
+    # FIXME: @andyb Assume crt0.s is the only assembly file in the libs for now. This is problematic.
     crt0 = build_dir / "crt0.o"
     dest = lib_dir / "crt0.o"
     dest.unlink(missing_ok=True)
@@ -369,6 +375,7 @@ def main() -> None:
             build_elf_component("loader", root_dir, build_dir, board, config, loader_defines)
             build_elf_component("sysinit", root_dir, build_dir, board, config, [])
             build_lib_component("libsel4cp", root_dir, build_dir, board, config)
+            build_lib_component("libdummycrt", root_dir, build_dir, board, config)
         # Setup the examples
         for example, example_path in board.examples.items():
             include_dir = root_dir / "board" / board.name / "example" / example
@@ -394,6 +401,8 @@ def main() -> None:
     source_prefix = Path(f"{NAME}-source-{VERSION}")
     with tar_open(source_tar_file, "w:gz") as tar:
         for filename in filenames:
+            # This is gonna error if you try run this while a file is staged
+            # to be deleted. Complete that first!
             tar.add(filename, arcname=source_prefix / filename, filter=tar_filter)
 
 if __name__ == "__main__":
