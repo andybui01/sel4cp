@@ -1213,7 +1213,7 @@ def build_system(
 
         # Collect VSpaces of child PDs
         threads_vspaces[pd] = []
-        for child_pd,vspace in vspace_objects_by_pd:
+        for child_pd,vspace in zip(system.protection_domains, vspace_objects):
             if child_pd.parent == pd:
                 threads_vspaces[pd].append(vspace)
 
@@ -1323,7 +1323,6 @@ def build_system(
         else:
             assert pd.pd_id is not None
             assert pd.parent is not None
-            assert pd.pd_id != 0
             fault_ep_cap = pd_endpoint_objects[pd.parent].cap_addr
             badge =  (1 << FAULT_EP_MASK_BIT) | pd.pd_id
 
@@ -1404,7 +1403,7 @@ def build_system(
                             SEL4_RIGHTS_ALL,
                             0)
             invocation.repeat(num_spawnable_threads, dest_index=1, src_obj=1)
-            system_invocation.append(invocation)
+            system_invocations.append(invocation)
 
 
             ## Mint access to scheduling contexts for threads in the root PD CSpace
@@ -1420,7 +1419,7 @@ def build_system(
                             SEL4_RIGHTS_ALL,
                             0)
             invocation.repeat(num_spawnable_threads, dest_index=1, src_obj=1)
-            system_invocation.append(invocation)
+            system_invocations.append(invocation)
 
 
             ## Mint access to CSpaces for threads in the root PD CSpace
@@ -1436,14 +1435,14 @@ def build_system(
                             SEL4_RIGHTS_ALL,
                             0)
             invocation.repeat(num_spawnable_threads, dest_index=1, src_obj=1)
-            system_invocation.append(invocation)
+            system_invocations.append(invocation)
 
 
             ## Mint access to child PD VSpaces in the root PD CSpace
 
             # Can't repeat invocation here because VSpace caps might not be next to each other
             for vspace in threads_vspaces[pd]:
-                system_invocation.append(
+                system_invocations.append(
                     Sel4CnodeMint(
                         cnode_obj.cap_addr,
                         BASE_VSPACE_CAP,
@@ -1661,19 +1660,6 @@ def build_system(
         # Could use pd.elf_file.write_symbol here to update variables if required.
         pd_elf_files[pd].write_symbol("sel4cp_name", pack("<16s", pd.name.encode("utf8")))
         pd_elf_files[pd].write_symbol("passive", pack("?", pd.passive))
-    
-
-    # Now patch in VSpace CPtrs to root PDs
-    for pd in system.protection_domains:
-        if len(pd_children[pd]) == 0:
-            continue
-        _data = [0] * len(pd_children[pd])
-        for child_pd in pd_children[pd]:
-            child_id = child_pd.pd_id
-            _vspace_cap = vspace_objects_by_pd[child_pd].cap_addr
-            _data[child_id - 1] = _vspace_cap # minus 1 because pd_ids are 1-indexed
-
-        pd_elf_files[pd].write_symbol("pd_vspace", pack("<Q" + "Q" * len(_data), 0, *_data))
 
 
     for pd in system.protection_domains:

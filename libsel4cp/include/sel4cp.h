@@ -19,6 +19,8 @@ typedef unsigned int sel4cp_pd;
 typedef unsigned int sel4cp_thread;
 typedef seL4_MessageInfo_t sel4cp_msginfo;
 
+typedef unsigned int sel4cp_errno;
+
 #define SEL4CP_MAX_USER_THREADS (64)
 #define SEL4CP_MAX_CHILD_PDS (1)
 
@@ -165,15 +167,15 @@ sel4cp_spawn_thread(sel4cp_thread_attr *thread_attr, sel4cp_thread thread)
         0
     );
 
-    seL4_TCB_Configure(
-        BASE_TCB_CPTR + thread,
-        BASE_CSPACE_CPTR + thread,
-        0,
-        BASE_VSPACE_CPTR + thread_attr->pd, /** FIXME: pd_ids are 1-indexed */
-        0,
-        /* IPC Buffer address */,
-        /* seL4 Frame for IPC Buffer */
-    );
+    // seL4_TCB_Configure(
+    //     BASE_TCB_CPTR + thread,
+    //     BASE_CSPACE_CPTR + thread,
+    //     0,
+    //     BASE_VSPACE_CPTR + thread_attr->pd, /** FIXME: pd_ids are 1-indexed */
+    //     0,
+    //     /* IPC Buffer address */,
+    //     /* seL4 Frame for IPC Buffer */
+    // );
 
     seL4_UserContext ctxt = {0};
     ctxt.pc = thread_attr->entry_point;

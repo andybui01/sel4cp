@@ -84,7 +84,7 @@ handler_loop(void)
         if (is_fault) {
             if ((badge >> FAULT_EP_ROOT_BIT) & 1) {
                 /* Fault came from root pd, abort for now */
-                abort();
+                seL4_Fail("sel4cp rootpd cannot handle its own fault yet");
             }
 
             fault(badge & PD_MASK, BADGE_TO_TID(badge), tag);

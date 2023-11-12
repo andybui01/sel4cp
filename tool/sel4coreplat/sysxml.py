@@ -364,7 +364,7 @@ def xml2pd(pd_xml: ET.Element, is_child: bool=False) -> ProtectionDomain:
         raise ValueError("program_image must be specified")
     
     # validate child pd pd_ids
-    child_pds_sorted = child_pds.sort()
+    child_pds_sorted = sorted(child_pds)
     for i in range(len(child_pds)):
         if i != child_pds_sorted[i].pd_id:
             raise UserError("Child pd_ids should be sequential from 0")
