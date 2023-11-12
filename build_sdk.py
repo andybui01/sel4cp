@@ -288,11 +288,12 @@ def build_lib_component(
 
 
     link_script = Path(component_name) / f"{lib_name}.ld"
-    dest = lib_dir / f"{lib_name}.ld"
-    dest.unlink(missing_ok=True)
-    copy(link_script, dest)
-    # Make output read-only
-    dest.chmod(0o444)
+    if link_script.exists():
+        dest = lib_dir / f"{lib_name}.ld"
+        dest.unlink(missing_ok=True)
+        copy(link_script, dest)
+        # Make output read-only
+        dest.chmod(0o444)
 
     # FIXME: @andyb Assume crt0.s is the only assembly file in the libs for now. This is problematic.
     crt0 = build_dir / "crt0.o"
@@ -403,7 +404,10 @@ def main() -> None:
         for filename in filenames:
             # This is gonna error if you try run this while a file is staged
             # to be deleted. Complete that first!
-            tar.add(filename, arcname=source_prefix / filename, filter=tar_filter)
+            try:
+                tar.add(filename, arcname=source_prefix / filename, filter=tar_filter)
+            except FileNotFoundError:
+                continue
 
 if __name__ == "__main__":
     main()

@@ -5,7 +5,6 @@
  */
 #include <sel4cp.h>
 
-#define __thread
 #include <sel4/sel4.h>
 
 void
@@ -16,8 +15,6 @@ sel4cp_dbg_putc(int c)
 #endif
 }
 
-
-
 void
 sel4cp_dbg_puts(const char *s)
 {
@@ -26,7 +23,6 @@ sel4cp_dbg_puts(const char *s)
         s++;
     }
 }
-
 
 void
 __assert_fail(const char  *str, const char *file, int line, const char *function)

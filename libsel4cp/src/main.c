@@ -7,7 +7,6 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#define __thread
 #include <sel4/sel4.h>
 
 #include <sel4cp.h>
@@ -25,20 +24,11 @@
 #define PD_MASK         0xff
 #define CHANNEL_MASK    0x3f
 
-char _stack[4096]  __attribute__((__aligned__(16)));
-
 bool passive;
 char sel4cp_name[16];
 bool have_signal = false;
 seL4_CPtr signal;
 seL4_MessageInfo_t signal_msg;
-
-extern seL4_IPCBuffer __sel4_ipc_buffer_obj;
-
-seL4_IPCBuffer *__sel4_ipc_buffer = &__sel4_ipc_buffer_obj;
-
-extern const void (*const __init_array_start []) (void);
-extern const void (*const __init_array_end []) (void);
 
 __attribute__((weak)) sel4cp_msginfo protected(sel4cp_channel ch, sel4cp_thread thread, sel4cp_msginfo msginfo)
 {
@@ -47,15 +37,6 @@ __attribute__((weak)) sel4cp_msginfo protected(sel4cp_channel ch, sel4cp_thread 
 
 __attribute__((weak)) void fault(sel4cp_pd pd, sel4cp_thread thread, sel4cp_msginfo msginfo)
 {
-}
-
-static void
-run_init_funcs(void)
-{
-    size_t count = __init_array_end - __init_array_start;
-    for (size_t i = 0; i < count; i++) {
-        __init_array_start[i]();
-    }
 }
 
 static void
@@ -107,7 +88,6 @@ handler_loop(void)
 void
 main(void)
 {
-    run_init_funcs();
     init();
 
     /* 

@@ -11,7 +11,6 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-#define __thread
 #include <sel4/sel4.h>
 
 typedef unsigned int sel4cp_channel;

@@ -16,7 +16,7 @@ CFLAGS := -std=gnu11 -g3 -O3 -nostdlib -ffreestanding -mcpu=$(GCC_CPU) -Wall -Wn
 
 LIBS := libsel4cp.a
 OBJS := main.o dbg.o
-OTHER_OBJS :=  crt0.o
+OTHER_OBJS :=
 
 $(BUILD_DIR)/%.o : src/%.S
 	$(TOOLCHAIN)gcc -x assembler-with-cpp -c -g3  -mcpu=$(GCC_CPU)  $< -o $@
