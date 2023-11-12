@@ -11,10 +11,10 @@ PHDRS
     /* TLS segments are read-only though they are write-able because
      * this is the initial copy (with initialied variables). We copy
      * this into each thread's TLS to allow them to modify. */
-    tls PT_LOAD;
+    tls PT_TLS;
 }
 
-ENTRY(_start);
+ENTRY(__start);
 
 STARTUP(crt0.o);
 
@@ -52,14 +52,16 @@ SECTIONS
 
     .tdata :
     {
-        PROVIDE( __tls_base = . );
+        PROVIDE( __tdata_start = . );
         *(.tdata .tdata.* .gnu.linkonce.td.*)
+        PROVIDE( __tdata_end = . );
     } :tls
 
     .tbss :
     {
         *(.tbss .tbss.* .gnu.linkonce.tb.*)
         *(.tcommon .tcommon.*)
+        PROVIDE( __tbss_end = . );
     } :tls
 
     .bss :
