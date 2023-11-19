@@ -296,12 +296,14 @@ def build_lib_component(
         dest.chmod(0o444)
 
     # FIXME: @andyb Assume crt0.s is the only assembly file in the libs for now. This is problematic.
+    # This is needed at link-time, and must be copied
     crt0 = build_dir / "crt0.o"
-    dest = lib_dir / "crt0.o"
-    dest.unlink(missing_ok=True)
-    copy(crt0, dest)
-    # Make output read-only
-    dest.chmod(0o444)
+    if crt0.exists():
+        dest = lib_dir / "crt0.o"
+        dest.unlink(missing_ok=True)
+        copy(crt0, dest)
+        # Make output read-only
+        dest.chmod(0o444)
 
     include_dir = root_dir / "board" / board.name / config.name / "include"
     source_dir = Path(component_name) / "include"
@@ -375,8 +377,10 @@ def main() -> None:
             ]
             build_elf_component("loader", root_dir, build_dir, board, config, loader_defines)
             build_elf_component("sysinit", root_dir, build_dir, board, config, [])
-            build_lib_component("libsel4cp", root_dir, build_dir, board, config)
+            # This order is strict, libdummycrt is the basis of all ELF files and
+            # libs in the system.
             build_lib_component("libdummycrt", root_dir, build_dir, board, config)
+            build_lib_component("libsel4cp", root_dir, build_dir, board, config)
         # Setup the examples
         for example, example_path in board.examples.items():
             include_dir = root_dir / "board" / board.name / "example" / example

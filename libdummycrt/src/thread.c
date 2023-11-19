@@ -1,4 +1,5 @@
 #include <libdummycrt/thread.h>
+#include <libdummycrt/string.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <sel4/sel4.h>
@@ -11,7 +12,7 @@ extern char __tdata_end;
 extern char __tbss_end;
 
 /* TLS variables */
-extern __thread seL4_IPCBuffer *__sel4_ipc_buffer;
+__thread seL4_IPCBuffer *__sel4_ipc_buffer;
 
 void sel4cp_thread_entry(void *ipc_buffer, void *tls_memory, int (*entry)(void))
 {

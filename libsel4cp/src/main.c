@@ -39,10 +39,13 @@ __attribute__((weak)) void fault(sel4cp_pd pd, sel4cp_thread thread, sel4cp_msgi
 {
 }
 
+extern void init(void);
+extern void notified(sel4cp_channel);
+
 static void
 handler_loop(void)
 {
-    bool have_reply;
+    bool have_reply = false;
     seL4_MessageInfo_t reply_tag;
 
     for (;;) {
@@ -85,7 +88,7 @@ handler_loop(void)
     }
 }
 
-void
+int
 main(void)
 {
     init();
@@ -104,4 +107,6 @@ main(void)
     }
 
     handler_loop();
+
+    return 0;
 }

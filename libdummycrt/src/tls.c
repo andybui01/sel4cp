@@ -1,5 +1,5 @@
+#include <libdummycrt/string.h>
 #include <stdint.h>
-#include <string.h>
 
 #include "tls.h"
 
@@ -27,9 +27,9 @@ static void copy_tls_template(const struct tls_info *tls_env, const uintptr_t tp
 {
     unsigned char *tls = tls_image_ptr_from_tp(tp, tls_env->align);
 
-    memcpy(tls, tls_env->tls_template, tls_env->tls_tdata_size);
+    dummycrt_memcpy(tls, tls_env->tls_template, tls_env->tls_tdata_size);
     void *tbss = &tls[tls_env->tls_tdata_size];
-    memset(tbss, 0, tls_env->tls_template_size - tls_env->tls_tdata_size);
+    dummycrt_memset(tbss, 0, tls_env->tls_template_size - tls_env->tls_tdata_size);
 
 }
 
