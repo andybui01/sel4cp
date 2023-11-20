@@ -1,5 +1,5 @@
 This is an experimental fork of sel4cp to evaluate the configuration of partitioned systems
-using sel4cp.
+using sel4cp. This also includes a prototype of multithreading.
 
 # seL4 Core Platform
 
@@ -7,8 +7,8 @@ The purpose of the seL4 Core Platform (sel4cp) is to enable system designers to 
 
 The seL4 Core Platform consists of three parts:
 
-   * seL4 Core Platform Library
-   * seL4 Core Platform initial task
+   * seL4 Core Platform libraries
+   * seL4 Core Platform system initializer
    * seL4 Core Platform tool
 
 The seL4 Core Platform is distributed as a software development kit (SDK).
@@ -35,7 +35,10 @@ Please file an issue if additional packages are required.
 * python3.9
 * python3.9-venv
 * musl-1.2.2
-* ARM GCC compiler; 10.2-2020.11
+* aarch64-none-elf toolchain; tested with GCC 13.2.0 [Nov 2023]
+
+There are no known packages for the toolchain that support TLS, hence it must be compiled from source with the following configuration for GCC:
+`--target=aarch64-none-elf --disable-shared --disable-nls --disable-threads --enable-tls --enable-languages=c --enable-checking=release`
 
 On Ubuntu 18.04 there are no packages available for musl-1.2.2; it must be compiled from source.
 On Ubuntu 18.04 Python 3.9 is available via the *deadsnakes* PPA: https://launchpad.net/~deadsnakes/+archive/ubuntu/ppa
@@ -56,36 +59,11 @@ Note: It is a high priority of the authors to ensure builds are self-contained a
 A high value is placed on using specifically versioned tools.
 At this point in time this is not fully realised, however it is a high priority to enable this in the near future.
 
-The ARM toolchain is available from:
-
-https://developer.arm.com/tools-and-software/open-source-software/developer-tools/gnu-toolchain/gnu-a/downloads/10-2-2020-11
-
-The specific version used for development is the x86_64-aarch64-none-elf version:
-
-https://developer.arm.com/-/media/Files/downloads/gnu-a/10.2-2020.11/binrel/gcc-arm-10.2-2020.11-x86_64-aarch64-none-elf.tar.xz?revision=79f65c42-1a1b-43f2-acb7-a795c8427085&hash=61BBFB526E785D234C5D8718D9BA8E61
-
-Note: There are no plans to support development of sel4cp on any platforms other than Linux x86_64.
-
-## seL4 Version
-
-The SDK includes a binary of the seL4 kernel.
-During the SDK build process the kernel is build from source.
-
-At this point in time there are some minor changes to the seL4 kernel required for seL4 Core Platform.
-
-Please clone seL4 from:
-
-    git@github.com:BreakawayConsulting/seL4.git
-
-The correct branch to use is `sel4cp-core-support`.
-
-Testing has been performed using commit `92f0f3ab28f00c97851512216c855f4180534a60`.
-
 ## Building the SDK
 
-    $ ./pyenv/bin/python build_sdk.py --dev --sel4=<path to sel4>
+    $ ./pyenv/bin/python build_sdk.py --no-test --sel4=<path to sel4>
 
-Currently, we recommend using the `--dev` option as the tests are not up to date, and this option skips testing of the tool.
+Currently, we recommend using the `--no-test` option as the tests are not up to date, and this option skips testing of the tool.
 
 ## Using the SDK
 
@@ -115,7 +93,7 @@ The SDK is delivered as a `tar.gz` file.
 
 The SDK top-level directory is `sel4cp-sdk-$VERSION`.
 
-The directory layout underneath the top-level directory is:
+The directory layout underneath the top-level directory is [OUTDATED]:
 
 ```
 bin/
@@ -130,19 +108,6 @@ bsp/$board/$config/elf/loader.elf
 bsp/$board/$config/elf/kernel.elf
 bsp/$board/$config/elf/monitor.elf
 ```
-
-The currently supported boards:
-
-* TODO
-
-The currently supported configurations are:
-
-* release
-* debug
-
-## Supported Boards
-
-### TODO
 
 ## Supported Configurations
 
