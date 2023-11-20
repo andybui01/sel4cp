@@ -1,9 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!--
- Copyright 2021, Breakaway Consulting Pty. Ltd.
 
- SPDX-License-Identifier: BSD-2-Clause
--->
 <system>
 
     <partition name="hello" length="1">

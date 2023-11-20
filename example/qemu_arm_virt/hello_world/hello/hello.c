@@ -1,8 +1,3 @@
-/*
- * Copyright 2021, Breakaway Consulting Pty. Ltd.
- *
- * SPDX-License-Identifier: BSD-2-Clause
- */
 #include <stdint.h>
 #include <sel4cp.h>
 

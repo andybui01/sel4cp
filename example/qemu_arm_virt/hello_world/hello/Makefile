@@ -1,8 +1,3 @@
-#
-# Copyright 2021, Breakaway Consulting Pty. Ltd.
-#
-# SPDX-License-Identifier: BSD-2-Clause
-#
 ifeq ($(strip $(BUILD_DIR)),)
 $(error BUILD_DIR must be specified)
 endif
