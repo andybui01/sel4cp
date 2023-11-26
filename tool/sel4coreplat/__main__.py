@@ -1578,6 +1578,8 @@ def build_system(
         pd_b_cnode_obj = cnode_objects_by_pd[pd_b]
         pd_a_notification_obj = notification_objects_by_pd[pd_a]
         pd_b_notification_obj = notification_objects_by_pd[pd_b]
+
+        # EPs that each PD uses to listen on (the input EP)
         pd_a_endpoint_obj = pd_endpoint_objects.get(pd_a)
         pd_b_endpoint_obj = pd_endpoint_objects.get(pd_b)
 
@@ -1612,7 +1614,8 @@ def build_system(
                 pd_b_badge)
         )
 
-        # Set up the endpoint caps
+        ## Set up the endpoint caps
+        # If PD B accepts PPCs, badge an endpoint for PD A to use.
         if pd_b.pp:
             pd_a_cap_idx = BASE_OUTPUT_EP_CAP_IDX + cc.id_a
             pd_a_badge = (1 << EP_MASK_BIT) | cc.id_b
@@ -1630,6 +1633,21 @@ def build_system(
                     pd_a_badge)
             )
 
+            # If PD B is our parent, we set up a root PPC endpoint
+            if pd_a.parent == pd_b:
+                system_invocations.append(
+                    Sel4CnodeCopy(
+                        pd_a_cnode_obj.cap_addr,
+                        ROOT_PD_EP_CAP_IDX,
+                        PD_CAP_BITS,
+                        pd_a_cnode_obj.cap_addr,
+                        pd_a_cap_idx,
+                        PD_CAP_BITS,
+                        SEL4_RIGHTS_ALL, # FIXME: Check rights
+                    )
+                )
+
+        # If PD A accepts PPCs, badge an endpoint for PD B to use.
         if pd_a.pp:
             pd_b_cap_idx = BASE_OUTPUT_EP_CAP_IDX + cc.id_b
             pd_b_badge = (1 << EP_MASK_BIT) | cc.id_a
@@ -1646,6 +1664,20 @@ def build_system(
                     SEL4_RIGHTS_ALL, # FIXME: Check rights
                     pd_b_badge)
             )
+
+            # If PD A is our parent, we set up a root PPC endpoint
+            if pd_b.parent == pd_a:
+                system_invocations.append(
+                    Sel4CnodeCopy(
+                        pd_b_cnode_obj.cap_addr,
+                        ROOT_PD_EP_CAP_IDX,
+                        PD_CAP_BITS,
+                        pd_b_cnode_obj.cap_addr,
+                        pd_b_cap_idx,
+                        PD_CAP_BITS,
+                        SEL4_RIGHTS_ALL, # FIXME: Check rights
+                    )
+                )
 
     # All minting is complete at this point
 
