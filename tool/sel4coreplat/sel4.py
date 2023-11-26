@@ -500,6 +500,15 @@ class Sel4TcbResume(Sel4Invocation):
 
 
 @dataclass
+class Sel4TcbSuspend(Sel4Invocation):
+    _object_type = "TCB"
+    _method_name = "Suspend"
+    _extra_caps = ()
+    label = Sel4Label.TCBSuspend
+    tcb: int
+
+
+@dataclass
 class Sel4TcbWriteRegisters(Sel4Invocation):
     _object_type = "TCB"
     _method_name = "WriteRegisters"

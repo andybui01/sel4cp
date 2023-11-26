@@ -87,7 +87,7 @@ class Loader:
         self._magic = 0x5e14dead if sz== 32 else 0x5e14dead14de5ead
 
         for loader_segment in self._elf.segments:
-            if loader_segment.loadable:
+            if loader_segment.is_loadable:
                 break
         else:
             raise Exception("Didn't find loadable segment")
@@ -104,7 +104,7 @@ class Loader:
         kernel_first_paddr: Optional[int] = None
         kernel_p_v_offset: Optional[int] = None
         for segment in kernel_elf.segments:
-            if segment.loadable:
+            if segment.is_loadable:
                 # NOTE: For now we include any zeroes. We could optimize in the future
 
                 if kernel_first_vaddr is None or segment.virt_addr < kernel_first_vaddr:
@@ -137,7 +137,7 @@ class Loader:
         # only single-segment ELF files, so we keep things simple here.
         assert len(initial_task_elf.segments) == 1
         segment = initial_task_elf.segments[0]
-        assert segment.loadable
+        assert segment.is_loadable
 
         inittask_first_vaddr = segment.virt_addr
         inittask_last_vaddr = round_up(segment.virt_addr + segment.mem_size, kb(4))

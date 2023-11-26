@@ -32,7 +32,7 @@ class DataEncoding(IntEnum):
 class OperatingSystemAbi(IntEnum):
     ELFOSABI_SYSV = 0
     ELFOSABI_HPUX = 1
-    ELFOSABI_STANDALINE = 255
+    ELFOSABI_STANDALONE = 255
 
 
 class SegmentType(IntEnum):
@@ -43,6 +43,7 @@ class SegmentType(IntEnum):
     PT_NOTE = 4
     PT_SHLID = 5
     PT_PHDR = 6
+    PT_TLS = 7
 
 class SegmentAttributes(IntFlag):
     PF_X = 0x1
@@ -224,21 +225,27 @@ class ElfSymbol:
     size: int
 
 
+# TODO: @andyb: this needs cleaning up
 class ElfSegment:
-    def __init__(self, phys_addr: int, virt_addr: int, data: bytearray, loadable: bool, attrs: SegmentAttributes) -> None:
+    def __init__(self, header: ElfProgramHeader, data: bytearray) -> None:
+        self.header = header
+        self.attrs = SegmentAttributes(header.flags)
         self.data = data
-        self.phys_addr = phys_addr
-        self.virt_addr = virt_addr
-        self.loadable = loadable
-        self.attrs = attrs
 
     def __repr__(self) -> str:
-        return f"<ElfSegment phys_addr=0x{self.phys_addr:x} virt_addr=0x{self.virt_addr:x} mem_size={self.mem_size}>"
+        return f"<ElfSegment phys_addr=0x{self.header.paddr:x} virt_addr=0x{self.header.vaddr:x} mem_size={self.mem_size}>"
 
-    # FIXME: Is this really useful?
+    @property
+    def is_loadable(self) -> bool:
+        return self.header.type_ == SegmentType.PT_LOAD or self.header.type_ == SegmentType.PT_TLS
+
     @property
     def mem_size(self) -> int:
-        return len(self.data)
+        return self.header.memsz
+    
+    @property
+    def alignment(self) -> int:
+        return self.header.align
 
     @property
     def is_writable(self) -> bool:
@@ -251,6 +258,18 @@ class ElfSegment:
     @property
     def is_executable(self) -> bool:
         return (self.attrs & SegmentAttributes.PF_X) != 0
+    
+    @property
+    def phys_addr(self) -> int:
+        return self.header.paddr
+    
+    @property
+    def virt_addr(self) -> int:
+        return self.header.vaddr
+    
+    @property
+    def type(self) -> int:
+        return self.header.type_
 
 
 class ElfFile:
@@ -300,8 +319,9 @@ class ElfFile:
                 f.seek(phent.offset)
                 data = f.read(phent.filesz)
                 zeros = bytes(phent.memsz - phent.filesz)
-                elf.segments.append(ElfSegment(phent.paddr, phent.vaddr, bytearray(data + zeros), phent.type_ == 1, SegmentAttributes(phent.flags)))
-
+                mem = bytearray(data + zeros)
+                assert(len(mem) == phent.memsz)
+                elf.segments.append(ElfSegment(phent, mem))
 
             # FIXME: Add support for sections and symbols
             f.seek(hdr.shoff)
@@ -351,7 +371,7 @@ class ElfFile:
             header = ElfHeader(
                 ident_data=DataEncoding.ELFDATA2LSB,
                 ident_version=ElfVersion.EV_CURRENT,
-                ident_osabi=OperatingSystemAbi.ELFOSABI_STANDALINE,
+                ident_osabi=OperatingSystemAbi.ELFOSABI_STANDALONE,
                 ident_abiversion=0,
                 type_ = ObjectFileType.ET_EXEC,
                 machine=MachineType.EM_AARCH64,
@@ -392,13 +412,11 @@ class ElfFile:
             for segment in self.segments:
                 f.write(segment.data)
 
-
     def add_segment(self, segment: ElfSegment) -> None:
         # TODO: Check that the segment doesn't overlap any existing
         # segment
         # TODO: We may want to keep segments in order.
         self.segments.append(segment)
-
 
     def get_data(self, vaddr: int, size: int) -> bytes:
         for seg in self.segments:
@@ -415,15 +433,6 @@ class ElfFile:
                 offset = vaddr - seg.virt_addr
                 assert len(data) <= size
                 seg.data[offset:offset+len(data)] = data
-
-
-    # def read(self, offset: int, size: int) -> bytes:
-    #     self._f.seek(offset)
-    #     return self._f.read(size)
-
-    # def _get_sh_string(self, idx: int) -> str:
-    #     end_idx = self._shstrtab.find(0, idx)
-    #     return self._shstrtab[idx:end_idx].decode("ascii")
 
     @staticmethod
     def _get_string(strtab: bytes, idx: int) -> str:
@@ -449,4 +458,11 @@ class ElfFile:
     def read_struct(self, variable_name: str, struct_: Struct) -> Tuple[int, ...]:
         vaddr, size = self.find_symbol(variable_name)
         return struct_.unpack_from(self.get_data(vaddr, size))
-
+    
+    def find_segment_all(self, segment_type: int) -> Tuple[ElfSegment]:
+        ret: List[ElfSegment] = []
+        for segment in self.segments:
+            if segment.type == segment_type:
+                ret.append(segment)
+        
+        return tuple(ret)
