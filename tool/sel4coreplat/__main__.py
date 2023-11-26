@@ -1748,13 +1748,11 @@ def build_system(
     # the list will be as such: XXXXXXXYYYYZZZZZZZZZZZ where X, Y, Z are PDs belonging to their respective
     # partitions. so here we just repeat for the size of each partition
     start_tcb_of_partition = tcb_objects[0].cap_addr
-    domain = 0
-    for partition in system.partitions:
-        invocation = Sel4DomainSet(DOMAIN_CAP_ADDRESS, domain, start_tcb_of_partition)
+    for partition_id, partition in enumerate(system.partitions):
+        invocation = Sel4DomainSet(DOMAIN_CAP_ADDRESS, partition_id, start_tcb_of_partition)
         invocation.repeat(count=len(partition.protection_domains), tcb=1)
         system_invocations.append(invocation)
         start_tcb_of_partition += len(partition.protection_domains)
-        domain += 1
 
     # Resume (start) all the threads
     invocation = Sel4TcbResume(tcb_objects[0].cap_addr)
