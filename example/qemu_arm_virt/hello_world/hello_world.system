@@ -4,7 +4,7 @@
 
     <partition name="hello" length="1">
         <!-- OS/Health Monitor -->
-        <protection_domain name="os" priority="254">
+        <protection_domain name="os" priority="254" pp="true">
             <program_image path="os/os.elf" />
             <threads/> 
 

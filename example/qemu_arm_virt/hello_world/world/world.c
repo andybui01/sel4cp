@@ -4,9 +4,7 @@
 void
 init(void)
 {
-    while (1) {
-        sel4cp_dbg_puts("world\n");
-    }
+    sel4cp_dbg_puts("world\n");
 }
 
 void
