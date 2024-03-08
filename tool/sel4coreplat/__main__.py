@@ -1508,7 +1508,7 @@ def build_system(
 
             ## Mint access to empty threads in the root PD CSpace
 
-            tcb_cap = threads_tcbs[pd][0].cap_addr
+            tcb_cap = threads_tcbs[pd][pd.num_child_pds].cap_addr
             invocation = Sel4CnodeMint(
                             cnode_obj.cap_addr,
                             BASE_TCB_CAP + pd.num_child_pds,
@@ -1524,7 +1524,7 @@ def build_system(
 
             ## Mint access to scheduling contexts for threads in the root PD CSpace
 
-            sc_cap = threads_sc[pd][0].cap_addr
+            sc_cap = threads_sc[pd][pd.num_child_pds].cap_addr
             invocation = Sel4CnodeMint(
                             cnode_obj.cap_addr,
                             BASE_SC_CAP + pd.num_child_pds,
@@ -1540,7 +1540,7 @@ def build_system(
 
             ## Mint access to CSpaces for threads in the root PD CSpace
 
-            cnode_cap = threads_cnodes[pd][0].cap_addr
+            cnode_cap = threads_cnodes[pd][pd.num_child_pds].cap_addr
             invocation = Sel4CnodeMint(
                             cnode_obj.cap_addr,
                             BASE_CSPACE_CAP + pd.num_child_pds,
