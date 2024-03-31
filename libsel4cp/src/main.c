@@ -14,15 +14,21 @@
 /* SYSINIT needs to handle this */
 #define UNBIND_SC_LABEL 0
 
-#define EP_MASK_BIT         63
-#define FAULT_EP_MASK_BIT   62
-#define FAULT_EP_ROOT_BIT   61
+#define BADGE_TYPE_BIT      62
+#define     GET_BADGE_TYPE(x)       ((x) >> BADGE_TYPE_BIT) 
 
-#define TID_MASK        0xff
-#define BADGE_TID_BIT   8
-#define BADGE_TO_TID(x) (((x) >> BADGE_TID_BIT) & TID_MASK)
-#define PD_MASK         0xff
-#define CHANNEL_MASK    0x3f
+#define BADGE_TYPE_NTFN     0
+
+#define BADGE_TYPE_FAULT    1
+#define     BADGE_FAULT_ROOT_BIT    61
+#define     BADGE_FAULT_PD_MASK     0xff
+#define     BADGE_FAULT_TID(x)      (((x) >> 8) & 0xff)
+
+#define BADGE_TYPE_PPC      2
+#define     BADGE_PPC_CHANNEL_MASK  0x3f
+
+#define BADGE_TYPE_ROOT_PPC 3
+#define     BADGE_ROOT_PPC_TID_MASK 0xff
 
 bool passive;
 char sel4cp_name[16];
@@ -30,7 +36,7 @@ bool have_signal = false;
 seL4_CPtr signal;
 seL4_MessageInfo_t signal_msg;
 
-__attribute__((weak)) sel4cp_msginfo protected(sel4cp_channel ch, sel4cp_thread thread, sel4cp_msginfo msginfo)
+__attribute__((weak)) sel4cp_msginfo protected(bool is_child, sel4cp_identifier identifier, sel4cp_msginfo msginfo)
 {
     return seL4_MessageInfo_new(0, 0, 0, 0);
 }
@@ -60,21 +66,21 @@ handler_loop(void)
             tag = seL4_Recv(INPUT_CPTR, &badge, REPLY_CPTR);
         }
 
-        uint64_t is_endpoint = badge >> EP_MASK_BIT;
-        uint64_t is_fault = (badge >> FAULT_EP_MASK_BIT) & 1;
-
         have_reply = false;
 
-        if (is_fault) {
-            if ((badge >> FAULT_EP_ROOT_BIT) & 1) {
+        if (GET_BADGE_TYPE(badge) == BADGE_TYPE_FAULT) {
+            if ((badge >> BADGE_FAULT_ROOT_BIT) & 1) {
                 /* Fault came from root pd, abort for now */
                 seL4_Fail("sel4cp rootpd cannot handle its own fault yet");
             }
 
-            fault(badge & PD_MASK, BADGE_TO_TID(badge), tag);
-        } else if (is_endpoint) {
+            fault(badge & BADGE_FAULT_PD_MASK, BADGE_FAULT_TID(badge), tag);
+        } else if (GET_BADGE_TYPE(badge) == BADGE_TYPE_PPC) {
             have_reply = true;
-            reply_tag = protected(badge & CHANNEL_MASK, BADGE_TO_TID(badge), tag);
+            reply_tag = protected(false, badge & BADGE_PPC_CHANNEL_MASK, tag);
+        } else if (GET_BADGE_TYPE(badge) == BADGE_TYPE_ROOT_PPC) {
+            have_reply = true;
+            reply_tag = protected(true, badge & BADGE_ROOT_PPC_TID_MASK, tag);
         } else {
             unsigned int idx = 0;
             do  {

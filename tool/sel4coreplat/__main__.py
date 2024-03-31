@@ -182,10 +182,18 @@ PD_SCHEDCONTEXT_SIZE = (1 << 8) # Maximum number of refills in a single scheduli
 EMPTY_THREAD_CAP_SIZE = 4
 EMPTY_THREAD_CAP_BITS = int(log2(EMPTY_THREAD_CAP_SIZE))
 
-# Set the top bit to signify that we are receiving on an endpoint and not a ntfn
-EP_MASK_BIT = 63
-FAULT_EP_MASK_BIT = 62
-FAULT_EP_ROOT_MASK_BIT = 61
+# Badge types:
+# Bits 63:62
+#   b00 - notification
+#   b01 - fault
+#   b10 - ppc
+#   b11 - root ppc
+BADGE_TYPE_BIT      = 62
+BADGE_TYPE_NTFN     = (0 << BADGE_TYPE_BIT)
+BADGE_TYPE_FAULT    = (1 << BADGE_TYPE_BIT)
+BADGE_FAULT_ROOT        = (1 << 61)
+BADGE_TYPE_PPC      = (2 << BADGE_TYPE_BIT)
+BADGE_TYPE_ROOT_PPC = (3 << BADGE_TYPE_BIT)
 
 
 def mr_page_bytes(mr: SysMemoryRegion) -> int:
@@ -1392,12 +1400,13 @@ def build_system(
         # TODO: make the root its own fault handler
         if is_root:
             fault_ep_cap = pd_endpoint_objects[pd].cap_addr
-            badge = (1 << FAULT_EP_MASK_BIT) | (1 << FAULT_EP_ROOT_MASK_BIT)
+            badge = BADGE_TYPE_FAULT | BADGE_FAULT_ROOT # We use an additional bit to determine if the fault is coming from the root PD
+            # itself. This is because PD IDs have a local namespace, which the root PD is NOT apart of.
         else:
             assert pd.pd_id is not None
             assert pd.parent is not None
             fault_ep_cap = pd_endpoint_objects[pd.parent].cap_addr
-            badge =  (1 << FAULT_EP_MASK_BIT) | pd.pd_id
+            badge =  BADGE_TYPE_FAULT | pd.pd_id
 
         invocation = Sel4CnodeMint(
             system_cnode_cap,
@@ -1430,6 +1439,7 @@ def build_system(
                 0)
         )
 
+    # TODO: Child PDs shouldnt get this if we don't plan on them handling PPCs...
     assert REPLY_CAP_IDX < PD_CAP_SIZE
     invocation = Sel4CnodeMint(cnode_objects[0].cap_addr, REPLY_CAP_IDX, PD_CAP_BITS, root_cnode_cap, pd_reply_objects[0].cap_addr, kernel_config.cap_address_bits, SEL4_RIGHTS_ALL, 1)
     invocation.repeat(len(system.protection_domains), cnode=1, src_obj=1)
@@ -1463,6 +1473,23 @@ def build_system(
         # Set up child PD caps first (in the root PD CSpace)
         for maybe_child_pd, maybe_child_tcb, maybe_child_sc, maybe_child_cnode in zip(system.protection_domains, tcb_objects, schedcontext_objects, cnode_objects):
             if maybe_child_pd.parent is pd:
+                # Mint the root PD's endpoint into the child PD's CSpace if we support root PPCs
+                if pd.accepts_root_ppc:
+                    root_pd_ep = pd_endpoint_objects.get(pd)
+                    child_pd_badge = BADGE_TYPE_ROOT_PPC | maybe_child_pd.pd_id # remember that first few thread IDs are actually just PD IDs!
+                    system_invocations.append(
+                        Sel4CnodeMint(
+                            maybe_child_cnode.cap_addr,
+                            ROOT_PD_EP_CAP_IDX,
+                            PD_CAP_BITS, # FIXME @andyb: this is a flaw, CSpace size for PD and threads should be the same if possible
+                            root_cnode_cap,
+                            root_pd_ep.cap_addr,
+                            kernel_config.cap_address_bits,
+                            SEL4_RIGHTS_ALL,
+                            child_pd_badge)
+                    )
+                    
+
                 system_invocations.append(
                     Sel4CnodeMint(
                         cnode_obj.cap_addr,
@@ -1476,6 +1503,9 @@ def build_system(
                 )
                 
                 # We only setup the below caps in the root PD if we plan to support threading
+                # "This code looks the exact same as below"
+                # Yeah thats true, but this is for PDs, to support threading the root PD needs
+                # access to things like SC and CSpace caps, which we provide here for the PDs ONLY.
                 if pd in pds_with_threads:
                     system_invocations.append(
                         Sel4CnodeMint(
@@ -1505,6 +1535,25 @@ def build_system(
         # Set up caps needed to support threading
         if pd in pds_with_threads:
             num_spawnable_threads = SystemConfig.MAX_USER_THREADS - pd.num_child_pds
+
+            ## Mint a endpoint for empty threads to make root PPCs, if supported, into the thread CSpace.
+            ## TODO: mint a fault EP for each thread too
+
+            if pd.accepts_root_ppc:
+                root_pd_ep = pd_endpoint_objects.get(pd)
+                child_cnode_cap = threads_cnodes[pd][pd.num_child_pds].cap_addr
+                child_pd_badge = BADGE_TYPE_ROOT_PPC | (pd.num_child_pds) # remember that first few thread IDs are actually just PD IDs!
+                invocation = Sel4CnodeMint(
+                    child_cnode_cap,
+                    ROOT_PD_EP_CAP_IDX,
+                    EMPTY_THREAD_CAP_BITS,
+                    root_cnode_cap,
+                    root_pd_ep.cap_addr,
+                    kernel_config.cap_address_bits,
+                    SEL4_RIGHTS_ALL,
+                    child_pd_badge)
+                invocation.repeat(num_spawnable_threads, cnode=1, badge=1)
+
 
             ## Mint access to empty threads in the root PD CSpace
 
@@ -1615,10 +1664,20 @@ def build_system(
         )
 
         ## Set up the endpoint caps
+        # There are 2 types of channels:
+        # 1. Root PPCs, from child to root PD
+        # 2. Normal PPCs between 2 normal PDs that are NOT child PDs
+        # These 2 cannot exist together, and for now we say that the only endpoints
+        # the child PDs get are to the root PDs and nobody else. This simplifies the
+        # threading model, as each thread in a child PD will just have small CSpaces (4 slots ish)
+        # and only have to communicate with their parent. Expanding the CSpaces beyond this can
+        # be for future consideration.
+
+        # A -> B
         # If PD B accepts PPCs, badge an endpoint for PD A to use.
         if pd_b.pp:
             pd_a_cap_idx = BASE_OUTPUT_EP_CAP_IDX + cc.id_a
-            pd_a_badge = (1 << EP_MASK_BIT) | cc.id_b
+            pd_a_badge = BADGE_TYPE_PPC | cc.id_b
             assert pd_b_endpoint_obj is not None
             assert pd_a_cap_idx < PD_CAP_SIZE
             system_invocations.append(
@@ -1633,24 +1692,12 @@ def build_system(
                     pd_a_badge)
             )
 
-            # If PD B is our parent, we set up a root PPC endpoint
-            if pd_a.parent == pd_b:
-                system_invocations.append(
-                    Sel4CnodeCopy(
-                        pd_a_cnode_obj.cap_addr,
-                        ROOT_PD_EP_CAP_IDX,
-                        PD_CAP_BITS,
-                        pd_a_cnode_obj.cap_addr,
-                        pd_a_cap_idx,
-                        PD_CAP_BITS,
-                        SEL4_RIGHTS_ALL, # FIXME: Check rights
-                    )
-                )
 
+        # B -> A
         # If PD A accepts PPCs, badge an endpoint for PD B to use.
         if pd_a.pp:
             pd_b_cap_idx = BASE_OUTPUT_EP_CAP_IDX + cc.id_b
-            pd_b_badge = (1 << EP_MASK_BIT) | cc.id_a
+            pd_b_badge = BADGE_TYPE_PPC | cc.id_a
             assert pd_a_endpoint_obj is not None
             assert pd_b_cap_idx < PD_CAP_SIZE
             system_invocations.append(
@@ -1665,19 +1712,6 @@ def build_system(
                     pd_b_badge)
             )
 
-            # If PD A is our parent, we set up a root PPC endpoint
-            if pd_b.parent == pd_a:
-                system_invocations.append(
-                    Sel4CnodeCopy(
-                        pd_b_cnode_obj.cap_addr,
-                        ROOT_PD_EP_CAP_IDX,
-                        PD_CAP_BITS,
-                        pd_b_cnode_obj.cap_addr,
-                        pd_b_cap_idx,
-                        PD_CAP_BITS,
-                        SEL4_RIGHTS_ALL, # FIXME: Check rights
-                    )
-                )
 
     # All minting is complete at this point
 

@@ -13,9 +13,12 @@
 
 #include <sel4/sel4.h>
 
-typedef unsigned int sel4cp_channel;
-typedef unsigned int sel4cp_pd;
-typedef unsigned int sel4cp_thread;
+typedef unsigned int sel4cp_identifier;
+
+typedef sel4cp_identifier sel4cp_channel;
+typedef sel4cp_identifier sel4cp_pd;
+typedef sel4cp_identifier sel4cp_thread;
+
 typedef seL4_MessageInfo_t sel4cp_msginfo;
 
 typedef unsigned int sel4cp_errno;
@@ -54,7 +57,7 @@ enum pd_cspace_caps {
 /* User provided functions */
 void init(void);
 void notified(sel4cp_channel ch);
-sel4cp_msginfo protected(sel4cp_channel ch, sel4cp_thread thread, sel4cp_msginfo msginfo);
+sel4cp_msginfo protected(bool is_child, sel4cp_identifier identifier, sel4cp_msginfo msginfo);
 void fault(sel4cp_channel ch, sel4cp_thread thread, sel4cp_msginfo msginfo);
 
 extern char sel4cp_name[16];

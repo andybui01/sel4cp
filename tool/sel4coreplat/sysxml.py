@@ -89,6 +89,7 @@ class ProtectionDomain:
     threads: bool
     num_child_pds: int
     pp: bool
+    root_ppc: bool # TODO: @andyb tie this into pp somehow, this is wasted IMO
     passive: bool
     program_image: Path
     maps: Tuple[SysMap, ...]
@@ -101,6 +102,10 @@ class ProtectionDomain:
     @property
     def needs_ep(self) -> bool:
         return self.pp or self.parent is None
+    
+    @property
+    def accepts_root_ppc(self) -> bool:
+        return self.root_ppc
 
     @property
     def __lt__(self, other):
@@ -281,7 +286,7 @@ def xml2mr(mr_xml: ET.Element, plat_desc: PlatformDescription) -> SysMemoryRegio
 
 
 def xml2pd(pd_xml: ET.Element, is_child: bool=False) -> ProtectionDomain:
-    root_attrs = ("name", "priority", "pp", "budget", "period", "passive")
+    root_attrs = ("name", "priority", "root_pp", "pp", "budget", "period", "passive")
     child_attrs = root_attrs + ("pd_id", )
 
     _check_attrs(pd_xml, child_attrs if is_child else root_attrs)
@@ -369,6 +374,10 @@ def xml2pd(pd_xml: ET.Element, is_child: bool=False) -> ProtectionDomain:
         if i != child_pds_sorted[i].pd_id:
             raise UserError("Child pd_ids should be sequential from 0")
 
+    root_pp = str_to_bool(pd_xml.attrib.get("root_pp", "false"))
+    if root_pp and len(child_pds) == 0:
+        raise UserError("Cannot have root PPCs when no child PDs exist!")
+
     return ProtectionDomain(
         pd_id,
         name,
@@ -378,6 +387,7 @@ def xml2pd(pd_xml: ET.Element, is_child: bool=False) -> ProtectionDomain:
         threads,
         len(child_pds),
         pp,
+        root_pp,
         passive,
         program_image,
         tuple(maps),

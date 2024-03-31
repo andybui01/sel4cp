@@ -6,9 +6,13 @@ init(void)
 {
 }
 
-sel4cp_msginfo protected(sel4cp_channel ch, sel4cp_thread thread, sel4cp_msginfo msginfo)
+sel4cp_msginfo protected(bool is_child, sel4cp_identifier identifier, sel4cp_msginfo msginfo)
 {
+    seL4_Assert(is_child);
+
+    sel4cp_thread thread = (sel4cp_thread)identifier;
     seL4_Assert(thread == 0);
+
     seL4_Assert(sel4cp_msginfo_get_label(msginfo) == 0xdeadbeef);
     seL4_Assert(sel4cp_mr_get(0) == 0xdead);
     sel4cp_dbg_puts("os received call! replying...\n");
