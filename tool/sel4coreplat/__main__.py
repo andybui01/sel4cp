@@ -166,7 +166,7 @@ VSPACE_CAP_IDX = 2 # Used for cache management, leave unused for now in PDs
 
 REPLY_CAP_IDX = 5
 INPUT_CAP_IDX = 6 # Will be either the notification or endpoint cap
-SCHEDCONTROL_CAP_IDX = 9
+SCHEDCONTROL_CAP_IDX = 8
 
 BASE_OUTPUT_NTFN_CAP_IDX = 10
 BASE_OUTPUT_EP_CAP_IDX = BASE_OUTPUT_NTFN_CAP_IDX + 64
@@ -1610,6 +1610,21 @@ def build_system(
                             0)
             invocation.repeat(num_spawnable_threads, dest_index=1, src_obj=1)
             system_invocations.append(invocation)
+
+
+            ## Mint access to SchedControl cap
+
+            system_invocations.append(
+                Sel4CnodeCopy(
+                    cnode_obj.cap_addr,
+                    SCHEDCONTROL_CAP_IDX,
+                    PD_CAP_BITS,
+                    root_cnode_cap,
+                    kernel_boot_info.schedcontrol_cap,
+                    kernel_config.cap_address_bits,
+                    SEL4_RIGHTS_ALL
+                )
+            )
 
 
             ## Mint access to child PD VSpaces in the root PD CSpace
