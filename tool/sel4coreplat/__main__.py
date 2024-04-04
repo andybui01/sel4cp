@@ -72,6 +72,7 @@ from sel4coreplat.sel4 import (
     Sel4IrqControlGet,
     Sel4IrqHandlerSetNotification,
     Sel4SchedControlConfigureFlags,
+    Sel4SchedContextBind,
     emulate_kernel_boot,
     emulate_kernel_boot_partial,
     UntypedObject,
@@ -1528,6 +1529,9 @@ def build_system(
                             0
                         )
                     )
+                    # NOTE: no need to bind SC to TCB here since this is already done for PDs with endpoints
+                    # by calling Sel4TcbSetSchedParams below
+
                     system_invocations.append(
                         Sel4CnodeMint(
                             cnode_obj.cap_addr,
@@ -1593,6 +1597,10 @@ def build_system(
                             SEL4_RIGHTS_ALL,
                             0)
             invocation.repeat(num_spawnable_threads, dest_index=1, src_obj=1)
+            system_invocations.append(invocation)
+
+            invocation = Sel4SchedContextBind(sc_cap, tcb_cap)
+            invocation.repeat(num_spawnable_threads, schedcontext=1, tcb=1)
             system_invocations.append(invocation)
 
 

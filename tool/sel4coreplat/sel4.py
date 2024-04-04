@@ -688,6 +688,15 @@ class Sel4SchedControlConfigureFlags(Sel4Invocation):
     badge: int
     flags: int
 
+@dataclass
+class Sel4SchedContextBind(Sel4Invocation):
+    _object_type = "SchedContext"
+    _method_name = "Bind"
+    _extra_caps = ("tcb", )
+    label = Sel4Label.SchedContextBind
+    schedcontext: int
+    tcb: int
+
 @dataclass(frozen=True, eq=True)
 class UntypedObject:
     cap: int
