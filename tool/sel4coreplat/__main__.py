@@ -1300,7 +1300,7 @@ def build_system(
         threads_vspaces[pd] = []
         for child_pd,vspace in zip(system.protection_domains, vspace_objects):
             if child_pd.parent == pd:
-                threads_vspaces[pd].append(vspace)
+                threads_vspaces[pd].append((child_pd.pd_id, vspace))
 
 
     cap_slot = init_system._cap_slot
@@ -1615,11 +1615,11 @@ def build_system(
             ## Mint access to child PD VSpaces in the root PD CSpace
 
             # Can't repeat invocation here because VSpace caps might not be next to each other
-            for vspace in threads_vspaces[pd]:
+            for pd_id, vspace in threads_vspaces[pd]:
                 system_invocations.append(
                     Sel4CnodeMint(
                         cnode_obj.cap_addr,
-                        BASE_VSPACE_CAP,
+                        BASE_VSPACE_CAP + pd_id,
                         PD_CAP_BITS,
                         root_cnode_cap,
                         vspace.cap_addr,
