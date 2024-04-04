@@ -4,7 +4,6 @@
 # SPDX-License-Identifier: BSD-2-Clause
 #
 from dataclasses import dataclass, fields
-from enum import IntEnum
 from typing import List, Optional, Set, Tuple
 from struct import pack, Struct
 
@@ -304,74 +303,76 @@ typedef struct seL4_UserContext_ {
         return tuple(0 if x is None else x for x in raw)
 
 
-class Sel4Label(IntEnum):
+class Sel4Label():
+    (
     # Untyped
-    UntypedRetype = 1
+    UntypedRetype,
     # TCB
-    TCBReadRegisters = 2
-    TCBWriteRegisters = 3
-    TCBCopyRegisters = 4
-    TCBConfigure = 5
-    TCBSetPriority = 6
-    TCBSetMCPriority = 7
-    TCBSetSchedParams = 8
-    TCBSetTimeoutEndpoint = 9
-    TCBSetIPCBuffer = 10
-    TCBSetSpace = 11
-    TCBSuspend = 12
-    TCBResume = 13
-    TCBBindNotification = 14
-    TCBUnbindNotification = 15
-    TCBSetTLSBase = 16
+    TCBReadRegisters,
+    TCBWriteRegisters,
+    TCBCopyRegisters,
+    TCBConfigure,
+    TCBSetPriority,
+    TCBSetMCPriority,
+    TCBSetSchedParams,
+    TCBSetTimeoutEndpoint,
+    TCBSetIPCBuffer,
+    TCBSetVSpace,
+    TCBSetSpace,
+    TCBSuspend,
+    TCBResume,
+    TCBBindNotification,
+    TCBUnbindNotification,
+    TCBSetTLSBase,
     # CNode
-    CNodeRevoke = 17
-    CNodeDelete = 18
-    CNodeCancelBadgedSends = 19
-    CNodeCopy = 20
-    CNodeMint = 21
-    CNodeMove = 22
-    CNodeMutate = 23
-    CNodeRotate = 24
+    CNodeRevoke,
+    CNodeDelete,
+    CNodeCancelBadgedSends,
+    CNodeCopy,
+    CNodeMint,
+    CNodeMove,
+    CNodeMutate,
+    CNodeRotate,
     # IRQ
-    IRQIssueIRQHandler = 25
-    IRQAckIRQ = 26
-    IRQSetIRQHandler = 27
-    IRQClearIRQHandler = 28
+    IRQIssueIRQHandler,
+    IRQAckIRQ,
+    IRQSetIRQHandler,
+    IRQClearIRQHandler,
     # Domain
-    DomainSetSet = 29
+    DomainSetSet,
     # Sched
-    SchedControlConfigureFlags = 30
-    SchedContextBind = 31
-    SchedContextUnbind = 32
-    SchedContextUnbindObject = 33
-    SchedContextConsume = 34
-    SchedContextYieldTo = 35
+    SchedControlConfigureFlags,
+    SchedContextBind,
+    SchedContextUnbind,
+    SchedContextUnbindObject,
+    SchedContextConsume,
+    SchedContextYieldTo,
     # ARM V Space
-    ARMVSpaceClean_Data = 36
-    ARMVSpaceInvalidate_Data = 37
-    ARMVSpaceCleanInvalidate_Data = 38
-    ARMVSpaceUnify_Instruction = 39
+    ARMVSpaceClean_Data,
+    ARMVSpaceInvalidate_Data,
+    ARMVSpaceCleanInvalidate_Data,
+    ARMVSpaceUnify_Instruction,
     # ARM Page Upper Directory
-    ARMPageUpperDirectoryMap = 40
-    ARMPageUpperDirectoryUnmap = 41
-    ARMPageDirectoryMap = 42
-    ARMPageDirectoryUnmap = 43
+    ARMPageUpperDirectoryMap,
+    ARMPageUpperDirectoryUnmap,
+    ARMPageDirectoryMap,
+    ARMPageDirectoryUnmap,
     # ARM Page table
-    ARMPageTableMap = 44
-    ARMPageTableUnmap = 45
+    ARMPageTableMap,
+    ARMPageTableUnmap,
     # ARM Page
-    ARMPageMap = 46
-    ARMPageUnmap = 47
-    ARMPageClean_Data = 48
-    ARMPageInvalidate_Data = 49
-    ARMPageCleanInvalidate_Data = 50
-    ARMPageUnify_Instruction = 51
-    ARMPageGetAddress = 52
-    # ARM Asid
-    ARMASIDControlMakePool = 53
-    ARMASIDPoolAssign = 54
+    ARMPageMap,
+    ARMPageUnmap,
+    ARMPageClean_Data,
+    ARMPageInvalidate_Data,
+    ARMPageCleanInvalidate_Data,
+    ARMPageUnify_Instruction,
+    ARMPageGetAddress,
+    # ARM ASID
+    ARMASIDControlMakePool,
+    ARMASIDPoolAssign,
     # ARM IRQ
-    ARMIRQIssueIRQHandlerTrigger = 55
+    ARMIRQIssueIRQHandlerTrigger) = range(1, 57)
 
 
 ### Invocations
