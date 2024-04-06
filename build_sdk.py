@@ -73,11 +73,11 @@ SUPPORTED_BOARDS = (
 )
 
 SUPPORTED_CONFIGS = (
-    ConfigInfo(
-        name="release",
-        debug=False,
-        kernel_options = {},
-    ),
+    # ConfigInfo(
+    #     name="release",
+    #     debug=False,
+    #     kernel_options = {},
+    # ),
     ConfigInfo(
         name="debug",
         debug=True,
@@ -85,7 +85,8 @@ SUPPORTED_CONFIGS = (
             "KernelDebugBuild": True,
             "KernelPrinting": True,
             "KernelVerificationBuild": False,
-            "KernelNumDomains": 2
+            "KernelNumDomains": 2,
+            "KernelDomainSchedule": Path("domain_schedule.c")
         }
     ),
 )
