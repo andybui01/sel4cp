@@ -4,7 +4,10 @@
 void
 init(void)
 {
-    sel4cp_dbg_puts("world\n");
+    for (;;) {
+        sel4cp_dbg_puts("PARTITION 2: world world world world\n");
+        // seL4_DebugDumpScheduler();
+    }
 }
 
 void
