@@ -9,7 +9,7 @@
 
 #include <stdbool.h>
 #include <stdint.h>
-#include <stdbool.h>
+#include <stddef.h>
 
 #include <sel4/sel4.h>
 
@@ -125,7 +125,8 @@ sel4cp_thread_restart(sel4cp_thread thread, uintptr_t entry_point)
 static inline void
 sel4cp_thread_resume(sel4cp_thread thread)
 {
-    seL4_TCB_Resume(BASE_TCB_CPTR + thread);
+    seL4_Error err = seL4_TCB_Resume(BASE_TCB_CPTR + thread);
+    seL4_Assert(!err);
 }
 
 static inline void
@@ -139,56 +140,75 @@ sel4cp_thread_stop(sel4cp_thread thread)
     }
 }
 
-typedef struct {
-    /* ID of protection domain to spawn the thread inside. */
-    sel4cp_pd pd;
-    uint64_t budget; // = TIME_CAPACITY
-    uint64_t period;
-    uintptr_t entry_point;
-
-} sel4cp_thread_attr;
-
-/**
- * @brief Spawns a thread inside a proection domain.
- * 
- * @param[in]   pd      The id of the protection domain to spawn the thread inside.
- * @param[out]  thread  Thread ID of the newly spawned thread.
- * @return 0 on success, errno otherwise.
- */
-static inline sel4cp_errno
-sel4cp_spawn_thread(sel4cp_thread_attr *thread_attr, sel4cp_thread thread)
+static sel4cp_errno
+sel4cp_thread_set_sched_params(sel4cp_thread thread, uint64_t budget, uint64_t period)
 {
-    /** TODO: proper error handling */
-    seL4_SchedControl_ConfigureFlags(
+    seL4_Error err;
+    err = seL4_SchedControl_ConfigureFlags(
         SCHEDCONTROL_CPTR,
         BASE_SC_CPTR + thread,
-        thread_attr->budget,
-        thread_attr->period,
+        budget,
+        period,
         0,
-        thread, /** FIXME: what should the badge be set to? make sure timeout endpoint is correct */
+        0, /** FIXME: what should the badge be set to? for now we don't have timeout endpoints */
         0
     );
+    seL4_Assert(!err);
 
-    // seL4_TCB_Configure(
-    //     BASE_TCB_CPTR + thread,
-    //     BASE_CSPACE_CPTR + thread,
-    //     0,
-    //     BASE_VSPACE_CPTR + thread_attr->pd, /** FIXME: pd_ids are 1-indexed */
-    //     0,
-    //     /* IPC Buffer address */,
-    //     /* seL4 Frame for IPC Buffer */
-    // );
+    return err;
+}
 
-    seL4_UserContext ctxt = {0};
-    ctxt.pc = thread_attr->entry_point;
-    seL4_TCB_WriteRegisters(
+static sel4cp_errno
+sel4cp_thread_set_address_space(sel4cp_thread thread, sel4cp_pd pd)
+{
+    seL4_Error err;
+    err = seL4_TCB_SetVSpace(
+        BASE_TCB_CPTR + thread,
+        BASE_VSPACE_CPTR + pd,
+        0
+    );
+    seL4_Assert(!err);
+    
+    return err;
+}
+
+static sel4cp_errno
+sel4cp_thread_set_priority(sel4cp_thread thread, sel4cp_pd authority, uint64_t priority)
+{
+    seL4_Error err;
+
+    /* Use the PD's MCP */
+    err = seL4_TCB_SetPriority(BASE_TCB_CPTR + thread, BASE_TCB_CPTR + authority, priority);
+    seL4_Assert(!err);
+
+    return err;
+}
+
+static sel4cp_errno
+sel4cp_thread_set_entry_attr(sel4cp_thread thread, uintptr_t thread_entry, uintptr_t real_entry,
+                             uintptr_t sp, uintptr_t ipc_buffer, uintptr_t tls_memory)
+{
+    seL4_Error err;
+    seL4_UserContext ctxt;
+
+    ctxt.pc = thread_entry;
+    ctxt.sp = sp;
+    ctxt.spsr = 0; // unused, but I'm being verbose so nregisters make sense
+    ctxt.x0 = ipc_buffer;
+    ctxt.x1 = tls_memory;
+    ctxt.x2 = real_entry;
+    size_t nregisters = 6;
+
+    err = seL4_TCB_WriteRegisters(
         BASE_TCB_CPTR + thread,
         false,
         0,
-        1,
+        nregisters,
         &ctxt
     );
-    return 0;
+    seL4_Assert(!err);
+
+    return err;
 }
 
 static inline sel4cp_msginfo
