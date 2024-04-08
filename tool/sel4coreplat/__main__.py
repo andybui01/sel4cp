@@ -696,6 +696,15 @@ def build_system(
     }
     ### Here we should validate that ELF files
 
+    ## Make sure MAX_USER_THREADS lines up in the tool and libsel4cp.
+    #  If they don't line up the CSpaces become wack. For now this is global so use any ELF,
+    #  in the future we can think about root PD-local constraints on # of threads.
+    random_elf = next(iter(pd_elf_files.values()))
+    vaddr, _ = random_elf.find_symbol("__sel4cp_max_user_threads")
+    sel4cp_max_user_threads = int.from_bytes(random_elf.get_data(vaddr, 8), "little")
+    assert(sel4cp_max_user_threads == SystemConfig.MAX_USER_THREADS)
+
+
     ## Determine physical memory region for 'reserved' memory.
     #
     # The 'reserved' memory region will not be touched by seL4 during boot
