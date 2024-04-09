@@ -1,5 +1,5 @@
 #include <stdint.h>
-#include <sel4cp.h>
+#include <sel4cp/sel4cp.h>
 
 #define SYSCALL_THREAD_CREATE 1
 

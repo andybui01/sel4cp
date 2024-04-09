@@ -1,6 +1,8 @@
 #include <stdint.h>
-#include <sel4cp.h>
 #include <stddef.h>
+
+#include <sel4cp/sel4cp.h>
+#include <sel4cp/thread.h>
 
 #define SYSCALL_THREAD_CREATE 1
 

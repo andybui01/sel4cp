@@ -9,7 +9,7 @@
 
 #include <sel4/sel4.h>
 
-#include <sel4cp.h>
+#include <sel4cp/sel4cp.h>
 
 const size_t __sel4cp_max_user_threads = SEL4CP_MAX_USER_THREADS;
 

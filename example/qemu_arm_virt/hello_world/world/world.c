@@ -1,5 +1,5 @@
 #include <stdint.h>
-#include <sel4cp.h>
+#include <sel4cp/sel4cp.h>
 
 void
 init(void)

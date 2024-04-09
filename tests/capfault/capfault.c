@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: BSD-2-Clause
  */
 #include <stdint.h>
-#include <sel4cp.h>
+#include <sel4cp/sel4cp.h>
 
 #define ECHO_CH 2
 

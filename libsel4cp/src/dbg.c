@@ -3,7 +3,7 @@
  *
  * SPDX-License-Identifier: BSD-2-Clause
  */
-#include <sel4cp.h>
+#include <sel4cp/sel4cp.h>
 
 #include <sel4/sel4.h>
 
