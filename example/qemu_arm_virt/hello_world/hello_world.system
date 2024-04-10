@@ -4,9 +4,12 @@
 
     <partition name="hello" length="3">
         <!-- OS/Health Monitor -->
-        <protection_domain name="os" priority="254" root_pp="true" budget="1000" period="1000">
+        <!-- 
+            budget/period: these default to 1000, but we add them for verbosity.
+            threads: this includes the child PD, so in this example the hello PD is already 1 thread.
+         -->
+        <protection_domain name="os" priority="254" root_pp="true" budget="1000" period="1000" threads="64">
             <program_image path="os/os.elf" />
-            <threads/> 
 
             <!-- User application -->
             <protection_domain name="hello" priority="200" pd_id="0" budget="1000" period="1000">

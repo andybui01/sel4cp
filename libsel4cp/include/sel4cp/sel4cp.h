@@ -23,7 +23,6 @@ typedef seL4_MessageInfo_t sel4cp_msginfo;
 
 typedef unsigned int sel4cp_errno;
 
-#define SEL4CP_MAX_USER_THREADS (64)
 #define SEL4CP_MAX_CHILD_PDS (1)
 
 enum pd_cspace_caps {
@@ -45,12 +44,16 @@ enum pd_cspace_caps {
     BASE_OUTPUT_NTFN_CPTR = 10,
     BASE_OUTPUT_EP_CPTR = BASE_OUTPUT_NTFN_CPTR + 64,
     BASE_IRQ_CPTR = BASE_OUTPUT_EP_CPTR + 64,
-    BASE_TCB_CPTR = BASE_IRQ_CPTR + 64,
-    BASE_SC_CPTR = BASE_TCB_CPTR + SEL4CP_MAX_USER_THREADS,
-    BASE_CSPACE_CPTR = BASE_SC_CPTR + SEL4CP_MAX_USER_THREADS,
-    BASE_VSPACE_CPTR = BASE_CSPACE_CPTR + SEL4CP_MAX_USER_THREADS,
-    MAX_CSPACE_CPTR = BASE_VSPACE_CPTR + SEL4CP_MAX_CHILD_PDS,
+    BASE_TCB_CPTR = BASE_IRQ_CPTR + 64
 };
+
+/* As configured by the user in the SDF. These macros help find a thread's object using
+ * offsets into the CSpace. For more info, refer to BASE_TCB_CAP in tool/sel4coreplat/__main__.py */
+extern const size_t libsel4cp_max_threads;
+#define THREAD_TCB(thread)      (BASE_TCB_CPTR + (thread))
+#define THREAD_SC(thread)       (BASE_TCB_CPTR + libsel4cp_max_threads + (thread))
+#define THREAD_CSPACE(thread)   (BASE_TCB_CPTR + libsel4cp_max_threads * 2 + (thread))
+#define THREAD_VSPACE(thread)   (BASE_TCB_CPTR + libsel4cp_max_threads * 3 + (thread))
 
 #define SEL4CP_MAX_CHANNELS 63
 

@@ -173,15 +173,30 @@ BASE_OUTPUT_NTFN_CAP_IDX = 10
 BASE_OUTPUT_EP_CAP_IDX = BASE_OUTPUT_NTFN_CAP_IDX + 64
 BASE_IRQ_CAP = BASE_OUTPUT_EP_CAP_IDX + 64
 BASE_TCB_CAP = BASE_IRQ_CAP + 64
-BASE_SC_CAP = BASE_TCB_CAP + SystemConfig.MAX_USER_THREADS
-BASE_CSPACE_CAP = BASE_SC_CAP + SystemConfig.MAX_USER_THREADS
-BASE_VSPACE_CAP = BASE_CSPACE_CAP + SystemConfig.MAX_USER_THREADS
 MAX_SYSTEM_INVOCATION_SIZE = mb(128)
 PD_CAP_SIZE = 512
 PD_CAP_BITS = int(log2(PD_CAP_SIZE))
 PD_SCHEDCONTEXT_SIZE = (1 << 8) # Maximum number of refills in a single scheduling context
 EMPTY_THREAD_CAP_SIZE = 4
 EMPTY_THREAD_CAP_BITS = int(log2(EMPTY_THREAD_CAP_SIZE))
+
+def get_thread_sc_offset(num_threads, thread):
+    """
+    Get offset for a thread's SC in a root PD's CSpace.
+    """
+    return BASE_TCB_CAP + num_threads + thread
+
+def get_thread_cspace_offset(num_threads, thread):
+    """
+    Get offset for a thread's CSpace in a root PD's CSpace.
+    """
+    return BASE_TCB_CAP + num_threads * 2 + thread
+
+def get_thread_vspace_offset(num_threads, thread):
+    """
+    Get offset for a thread's VSpace in a root PD's CSpace.
+    """
+    return BASE_TCB_CAP + num_threads * 3 + thread
 
 # Badge types:
 # Bits 63:62
@@ -696,15 +711,6 @@ def build_system(
     }
     ### Here we should validate that ELF files
 
-    ## Make sure MAX_USER_THREADS lines up in the tool and libsel4cp.
-    #  If they don't line up the CSpaces become wack. For now this is global so use any ELF,
-    #  in the future we can think about root PD-local constraints on # of threads.
-    random_elf = next(iter(pd_elf_files.values()))
-    vaddr, _ = random_elf.find_symbol("__sel4cp_max_user_threads")
-    sel4cp_max_user_threads = int.from_bytes(random_elf.get_data(vaddr, 8), "little")
-    assert(sel4cp_max_user_threads == SystemConfig.MAX_USER_THREADS)
-
-
     ## Determine physical memory region for 'reserved' memory.
     #
     # The 'reserved' memory region will not be touched by seL4 during boot
@@ -1084,10 +1090,11 @@ def build_system(
         assert(kernel_config.minimum_page_size % tls_seg.alignment == 0)
 
         # Is PD a child PD, and if so does the root PD have threads support?
-        is_child_pd_threaded = pd.parent and pd.parent.threads
+        is_child_pd_threaded = pd.parent and pd.parent.threads > 0
+        threads = pd.parent.threads if is_child_pd_threaded else 0
 
         # OK - now allocate the TLS regions in the VSpace.
-        base_vaddr, aligned_size = ProtectionDomainVSpace.alloc_vspace_tls(is_child_pd_threaded, tls_seg.mem_size, tls_seg.alignment)
+        base_vaddr, aligned_size = ProtectionDomainVSpace.alloc_vspace_tls(threads, tls_seg.mem_size, tls_seg.alignment)
         tls_mr = SysMemoryRegion(
             f"{pd.name}: TLS",
             aligned_size,
@@ -1099,7 +1106,7 @@ def build_system(
         tls_by_pd[pd] = base_vaddr
 
         # Allocate the IPC Buffers for this PD.
-        base_vaddr, aligned_size = ProtectionDomainVSpace.alloc_vspace_ipc_buffer(is_child_pd_threaded)
+        base_vaddr, aligned_size = ProtectionDomainVSpace.alloc_vspace_ipc_buffer(threads)
         ipc_buffer_mr = SysMemoryRegion(
             f"{pd.name}: IPC Buffers",
             aligned_size,
@@ -1114,7 +1121,7 @@ def build_system(
 
         # Allocate the stack areas, note that since we have guard pages in between
         # each stack, we cannot allocate it all at once in a single contiguous region.
-        nstacks = SystemConfig.MAX_USER_THREADS if is_child_pd_threaded else 1
+        nstacks = pd.parent.threads if is_child_pd_threaded else 1 # spawnable threads might join us in the VSpace, so if that is a possibility allocate space for them, otherwise its just use, the lonely orphan child pd with no loving parents :(
         for i in range(nstacks):
             base_vaddr, aligned_size = ProtectionDomainVSpace.alloc_thread_stack(i)
             mr = SysMemoryRegion(
@@ -1288,22 +1295,25 @@ def build_system(
 
 
     # PDs that have control of empty threads
-    pds_with_threads = [pd for pd in system.protection_domains if pd.threads]
+    pds_with_threads = [pd for pd in system.protection_domains if pd.threads > 0]
     threads_tcbs = {}
     threads_sc = {}
     threads_cnodes = {}
     threads_vspaces = {}
     for pd in pds_with_threads:
+        # Need to let the thread know at runtime how many threads it's controlling
+        pd_elf_files[pd].write_symbol("libsel4cp_max_threads", pack("<Q", pd.threads))
+
         # Create spawnable thread TCBs
-        threads_tcbs_names = [f"Thread TCB: PD={pd.name} #{i}" for i in range(SystemConfig.MAX_USER_THREADS)]
+        threads_tcbs_names = [f"Thread TCB: PD={pd.name} #{i}" for i in range(pd.threads)]
         threads_tcbs[pd] = init_system.allocate_objects(SEL4_TCB_OBJECT, threads_tcbs_names)
 
         # Create spawnable thread Scheduling Contexts
-        threads_sc_names = [f"Thread SC: PD={pd.name} #{i}" for i in range(SystemConfig.MAX_USER_THREADS)]
+        threads_sc_names = [f"Thread SC: PD={pd.name} #{i}" for i in range(pd.threads)]
         threads_sc[pd] = init_system.allocate_objects(SEL4_SCHEDCONTEXT_OBJECT, threads_sc_names, size=PD_SCHEDCONTEXT_SIZE)
 
         # Create spawnable thread CNodes - they are all 4 slots for now.
-        threads_cnode_names = [f"Thread CNode: PD={pd.name} #{i}" for i in range(SystemConfig.MAX_USER_THREADS)]
+        threads_cnode_names = [f"Thread CNode: PD={pd.name} #{i}" for i in range(pd.threads)]
         threads_cnodes[pd] = init_system.allocate_objects(SEL4_CNODE_OBJECT, threads_cnode_names, size=EMPTY_THREAD_CAP_SIZE)
 
         # Collect VSpaces of child PDs
@@ -1529,7 +1539,7 @@ def build_system(
                     system_invocations.append(
                         Sel4CnodeMint(
                             cnode_obj.cap_addr,
-                            BASE_SC_CAP + maybe_child_pd.pd_id,
+                            get_thread_sc_offset(pd.threads, maybe_child_pd.pd_id),
                             PD_CAP_BITS,
                             root_cnode_cap,
                             maybe_child_sc.cap_addr,
@@ -1544,7 +1554,7 @@ def build_system(
                     system_invocations.append(
                         Sel4CnodeMint(
                             cnode_obj.cap_addr,
-                            BASE_CSPACE_CAP + maybe_child_pd.pd_id,
+                            get_thread_cspace_offset(pd.threads, maybe_child_pd.pd_id),
                             PD_CAP_BITS,
                             root_cnode_cap,
                             maybe_child_cnode.cap_addr,
@@ -1556,7 +1566,7 @@ def build_system(
         
         # Set up caps needed to support threading
         if pd in pds_with_threads:
-            num_spawnable_threads = SystemConfig.MAX_USER_THREADS - pd.num_child_pds
+            num_spawnable_threads = pd.threads - pd.num_child_pds
 
             ## Mint a endpoint for empty threads to make root PPCs, if supported, into the thread CSpace.
             ## TODO: mint a fault EP for each thread too
@@ -1598,7 +1608,7 @@ def build_system(
             sc_cap = threads_sc[pd][pd.num_child_pds].cap_addr
             invocation = Sel4CnodeMint(
                             cnode_obj.cap_addr,
-                            BASE_SC_CAP + pd.num_child_pds,
+                            get_thread_sc_offset(pd.threads, pd.num_child_pds),
                             PD_CAP_BITS,
                             root_cnode_cap,
                             sc_cap,
@@ -1618,7 +1628,7 @@ def build_system(
             cnode_cap = threads_cnodes[pd][pd.num_child_pds].cap_addr
             invocation = Sel4CnodeMint(
                             cnode_obj.cap_addr,
-                            BASE_CSPACE_CAP + pd.num_child_pds,
+                            get_thread_cspace_offset(pd.threads, pd.num_child_pds),
                             PD_CAP_BITS,
                             root_cnode_cap,
                             cnode_cap,
@@ -1651,7 +1661,7 @@ def build_system(
                 system_invocations.append(
                     Sel4CnodeMint(
                         cnode_obj.cap_addr,
-                        BASE_VSPACE_CAP + pd_id,
+                        get_thread_vspace_offset(pd.threads, pd_id),
                         PD_CAP_BITS,
                         root_cnode_cap,
                         vspace.cap_addr,
@@ -1825,7 +1835,7 @@ def build_system(
             ipc_buffer_vaddr_base,
             cap_addr
         )
-        num_ipc_buffers = SystemConfig.MAX_USER_THREADS if pd.parent and pd.parent.threads else 1
+        num_ipc_buffers = pd.parent.threads if pd.parent and pd.parent.threads > 0 else 1
         invocation.repeat(num_ipc_buffers, buffer=ProtectionDomainVSpace.VSPACE_IPCBUFF_SIZE, buffer_frame=1)
         system_invocations.append(invocation)
 

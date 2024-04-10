@@ -86,7 +86,7 @@ class ProtectionDomain:
     priority: int
     budget: int
     period: int
-    threads: bool
+    nthreads: int # this is how many threads a root PD manages
     num_child_pds: int
     pp: bool
     root_ppc: bool # TODO: @andyb tie this into pp somehow, this is wasted IMO
@@ -106,6 +106,10 @@ class ProtectionDomain:
     @property
     def accepts_root_ppc(self) -> bool:
         return self.root_ppc
+    
+    @property
+    def threads(self) -> bool:
+        return self.nthreads
 
     @property
     def __lt__(self, other):
@@ -286,7 +290,7 @@ def xml2mr(mr_xml: ET.Element, plat_desc: PlatformDescription) -> SysMemoryRegio
 
 
 def xml2pd(pd_xml: ET.Element, is_child: bool=False) -> ProtectionDomain:
-    root_attrs = ("name", "priority", "root_pp", "pp", "budget", "period", "passive")
+    root_attrs = ("name", "priority", "root_pp", "pp", "budget", "period", "passive", "threads")
     child_attrs = root_attrs + ("pd_id", )
 
     _check_attrs(pd_xml, child_attrs if is_child else root_attrs)
@@ -306,7 +310,13 @@ def xml2pd(pd_xml: ET.Element, is_child: bool=False) -> ProtectionDomain:
     else:
         # root pd_ids are temporary and not actually used
         pd_id = 256
-
+    
+    threads = int(pd_xml.attrib.get("threads", "0"), base=0)
+    if threads > 0 and is_child:
+        raise UserError(f"PD {name} attempting to assign threads to a PD that is child PD")
+    elif threads < 0:
+        raise ValueError("threads must be higher or equal to 0")
+    
     if budget > period:
         raise ValueError(f"budget ({budget}) must be less than, or equal to, period ({period})")
 
@@ -317,7 +327,6 @@ def xml2pd(pd_xml: ET.Element, is_child: bool=False) -> ProtectionDomain:
     irqs = []
     setvars = []
     child_pds = []
-    threads = False
     for child in pd_xml:
         try:
             if child.tag == "program_image":
@@ -356,15 +365,15 @@ def xml2pd(pd_xml: ET.Element, is_child: bool=False) -> ProtectionDomain:
                 setvars.append(SysSetVar(symbol, region_paddr=region_paddr))
             elif child.tag == "protection_domain":
                 child_pds.append(xml2pd(child, is_child=True))
-            elif child.tag == "threads":
-                if is_child:
-                    raise UserError(f"PD {name} attempting to assign threads to a PD that is child PD")
-                threads = True
             else:
                 raise UserError(f"Invalid XML element '{child.tag}': {child._loc_str}")  # type: ignore
         except ValueError as e:
             raise UserError(f"Error: {e} on element '{child.tag}': {child._loc_str}")  # type: ignore
-
+    
+    # the tool can handle threads = 0 but not 0 < threads <= # PDs
+    if threads <= len(child_pds):
+        threads = 0
+    
     if program_image is None:
         raise ValueError("program_image must be specified")
     
