@@ -33,9 +33,9 @@ static void copy_tls_template(const struct tls_info *tls_env, const uintptr_t tp
 
 }
 
-uintptr_t copy_tls(const struct tls_info *tls_env, void *memory)
+uintptr_t copy_tls(const struct tls_info *tls_env, const uintptr_t memory)
 {
-    if (memory == NULL) {
+    if (!memory) {
         return 0;
     }
 

@@ -15,7 +15,7 @@ worker_thread(void)
 void
 init(void)
 {
-    extern void sel4cp_thread_entry(void *ipc_buffer, void *tls_memory, int (*entry)(void));
+    extern void sel4cp_thread_entry(sel4cp_thread thread, bool is_root_thread);
 
     sel4cp_mr_set(0, (uintptr_t)sel4cp_thread_entry);
     sel4cp_mr_set(1, (uintptr_t)worker_thread);

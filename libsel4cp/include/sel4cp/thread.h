@@ -90,18 +90,20 @@ sel4cp_thread_set_priority(sel4cp_thread thread, sel4cp_pd authority, uint64_t p
 }
 
 static sel4cp_errno
-sel4cp_thread_set_entry_attr(sel4cp_thread thread, uintptr_t thread_entry, uintptr_t real_entry,
-                             uintptr_t sp, uintptr_t ipc_buffer, uintptr_t tls_memory)
+sel4cp_thread_set_entry_attr(sel4cp_thread thread, uintptr_t thread_entry, uintptr_t real_entry)
 {
     seL4_Error err;
     seL4_UserContext ctxt;
 
     ctxt.pc = thread_entry;
-    ctxt.sp = sp;
-    ctxt.spsr = 0; // unused, but I'm being verbose so nregisters make sense
-    ctxt.x0 = ipc_buffer;
-    ctxt.x1 = tls_memory;
-    ctxt.x2 = real_entry;
+
+    // unused, but I'm being verbose so nregisters make sense
+    ctxt.sp = 0;
+    ctxt.spsr = 0;
+
+    ctxt.x0 = thread;
+    ctxt.x1 = real_entry;
+    ctxt.x2 = 0; /* Not root thread, set to 0 */
     size_t nregisters = 6;
 
     err = seL4_TCB_WriteRegisters(

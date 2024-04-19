@@ -21,11 +21,11 @@ struct tls_info {
  * @brief Copy the TLS template into a new thread.
  * 
  * @param[in] tls_env   Info about the TLS, essentially a truncated ELF Phdr.
- * @param[in] memory    Allocated memory region for TLS, may not be aligned.
+ * @param[in] memory    Allocated memory region for thread's TLS, may not be aligned.
  * 
  * @return 0 if memory invalid, aligned tp if success.
  */
-uintptr_t copy_tls(const struct tls_info *tls_env, void *memory);
+uintptr_t copy_tls(const struct tls_info *tls_env, const uintptr_t memory);
 
 /**
  * @brief Set the tp in the arch TLS register.

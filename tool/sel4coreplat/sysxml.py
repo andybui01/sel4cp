@@ -308,8 +308,8 @@ def xml2pd(pd_xml: ET.Element, is_child: bool=False) -> ProtectionDomain:
         if pd_id < 0 or pd_id > 255:
             raise ValueError("pd_id must be between 0 and 255")
     else:
-        # root pd_ids are temporary and not actually used
-        pd_id = 256
+        # PD IDs are local to a root PD's namespace, so we can make the root PD itself 0
+        pd_id = 0
     
     threads = int(pd_xml.attrib.get("threads", "0"), base=0)
     if threads > 0 and is_child:

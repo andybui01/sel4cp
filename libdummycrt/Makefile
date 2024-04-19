@@ -16,7 +16,7 @@ OBJS := crt1.o thread.o tls.o string.o
 OTHER_OBJS :=  crt0.o dummycrt.ld
 
 $(BUILD_DIR)/%.o : src/%.S
-	$(TOOLCHAIN)gcc -x assembler-with-cpp -c -g  -mcpu=$(GCC_CPU)  $< -o $@
+	$(TOOLCHAIN)gcc -I$(SEL4_SDK)/include -Iinclude -x assembler-with-cpp -c -g  -mcpu=$(GCC_CPU)  $< -o $@
 
 $(BUILD_DIR)/%.o : src/%.s
 	$(TOOLCHAIN)as -g -mcpu=$(GCC_CPU) $< -o $@

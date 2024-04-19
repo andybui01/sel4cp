@@ -14,7 +14,7 @@ extern char __tbss_end;
 /* TLS variables */
 __thread seL4_IPCBuffer *__sel4_ipc_buffer;
 
-void sel4cp_thread_entry(void *ipc_buffer, void *tls_memory, int (*entry)(void))
+void sel4cp_thread_setup(uint64_t tid, int (*entry)(void))
 {
     const uintptr_t tdata_start = (uintptr_t)&__tdata_start;
     const uintptr_t tdata_end = (uintptr_t)&__tdata_end;
@@ -28,8 +28,10 @@ void sel4cp_thread_entry(void *ipc_buffer, void *tls_memory, int (*entry)(void))
         .align = sizeof(seL4_Word), // @andyb: this should be p_align in the ELF Phdr
     };
 
+    const uintptr_t thread_tls_memory =  VSPACE_TLS_START + tid * tls_env.tls_template_size;
+
     /* Copy the TLS template to this thread's TLS memory area. */
-    const uintptr_t tp = copy_tls(&tls_env, tls_memory);
+    const uintptr_t tp = copy_tls(&tls_env, thread_tls_memory);
     if (!tp) {
         return;
     }
@@ -38,6 +40,7 @@ void sel4cp_thread_entry(void *ipc_buffer, void *tls_memory, int (*entry)(void))
     arch_set_tp(tp);
 
     /* Set any TLS variables we need. */
+    const uintptr_t ipc_buffer = VSPACE_IPCBUFF_START + tid * VSPACE_IPCBUFF_SIZE;
     __sel4_ipc_buffer = (seL4_IPCBuffer *)ipc_buffer;
 
     /* Call the actual thread entry.

@@ -1,5 +1,6 @@
 #include <libdummycrt/thread.h>
 #include <stddef.h>
+#include <stdint.h>
 
 extern const void (*const __init_array_start []) (void);
 extern const void (*const __init_array_end []) (void);
@@ -14,8 +15,8 @@ static void run_init_funcs(void)
     }
 }
 
-void __start_c(void *ipc_buffer, void *tls_memory)
+void crt_start_c(uint64_t tid)
 {
     run_init_funcs();
-    sel4cp_thread_entry(ipc_buffer, tls_memory, main);
+    sel4cp_thread_setup(tid, main);
 }

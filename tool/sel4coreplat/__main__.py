@@ -1848,9 +1848,8 @@ def build_system(
                 0, # no flags on ARM
                 Sel4Aarch64Regs(
                     pc=pd_elf_files[pd].entry,
-                    sp=stack_by_pd[pd] + (ProtectionDomainVSpace.VSPACE_STACK_SIZE - ProtectionDomainVSpace.VSPACE_STACK_ALIGN),
-                    x0=ipc_buffers_by_pd[pd][1],
-                    x1=tls_by_pd[pd]
+                    x0=pd.pd_id,
+                    x1=1 # Root thread?
                 )
             )
         )

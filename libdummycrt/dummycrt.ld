@@ -14,7 +14,7 @@ PHDRS
     tls PT_TLS;
 }
 
-ENTRY(__start);
+ENTRY(sel4cp_thread_entry);
 
 STARTUP(crt0.o);
 
