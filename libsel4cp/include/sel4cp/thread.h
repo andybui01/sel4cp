@@ -69,7 +69,7 @@ sel4cp_thread_set_address_space(sel4cp_thread thread, sel4cp_pd pd)
     seL4_Error err;
     err = seL4_TCB_SetVSpace(
         THREAD_TCB(thread),
-        THREAD_VSPACE(pd),
+        PD_VSPACE(pd),
         0
     );
     seL4_Assert(!err);

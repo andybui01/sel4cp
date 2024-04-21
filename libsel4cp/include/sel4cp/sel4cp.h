@@ -53,7 +53,7 @@ extern const size_t libsel4cp_max_threads;
 #define THREAD_TCB(thread)      (BASE_TCB_CPTR + (thread))
 #define THREAD_SC(thread)       (BASE_TCB_CPTR + libsel4cp_max_threads + (thread))
 #define THREAD_CSPACE(thread)   (BASE_TCB_CPTR + libsel4cp_max_threads * 2 + (thread))
-#define THREAD_VSPACE(thread)   (BASE_TCB_CPTR + libsel4cp_max_threads * 3 + (thread))
+#define PD_VSPACE(pd)           (BASE_TCB_CPTR + libsel4cp_max_threads * 3 + (pd))
 
 #define SEL4CP_MAX_CHANNELS 63
 

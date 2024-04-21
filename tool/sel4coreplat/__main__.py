@@ -192,7 +192,7 @@ def get_thread_cspace_offset(num_threads, thread):
     """
     return BASE_TCB_CAP + num_threads * 2 + thread
 
-def get_thread_vspace_offset(num_threads, thread):
+def get_pd_vspace_offset(num_threads, thread):
     """
     Get offset for a thread's VSpace in a root PD's CSpace.
     """
@@ -1299,7 +1299,7 @@ def build_system(
     threads_tcbs = {}
     threads_sc = {}
     threads_cnodes = {}
-    threads_vspaces = {}
+    child_vspaces = {}
     for pd in pds_with_threads:
         # Need to let the thread know at runtime how many threads it's controlling
         pd_elf_files[pd].write_symbol("libsel4cp_max_threads", pack("<Q", pd.threads))
@@ -1317,10 +1317,10 @@ def build_system(
         threads_cnodes[pd] = init_system.allocate_objects(SEL4_CNODE_OBJECT, threads_cnode_names, size=EMPTY_THREAD_CAP_SIZE)
 
         # Collect VSpaces of child PDs
-        threads_vspaces[pd] = []
+        child_vspaces[pd] = []
         for child_pd,vspace in zip(system.protection_domains, vspace_objects):
             if child_pd.parent == pd:
-                threads_vspaces[pd].append((child_pd.pd_id, vspace))
+                child_vspaces[pd].append((child_pd.pd_id, vspace))
 
 
     cap_slot = init_system._cap_slot
@@ -1657,11 +1657,11 @@ def build_system(
             ## Mint access to child PD VSpaces in the root PD CSpace
 
             # Can't repeat invocation here because VSpace caps might not be next to each other
-            for pd_id, vspace in threads_vspaces[pd]:
+            for pd_id, vspace in child_vspaces[pd]:
                 system_invocations.append(
                     Sel4CnodeMint(
                         cnode_obj.cap_addr,
-                        get_thread_vspace_offset(pd.threads, pd_id),
+                        get_pd_vspace_offset(pd.threads, pd_id),
                         PD_CAP_BITS,
                         root_cnode_cap,
                         vspace.cap_addr,
