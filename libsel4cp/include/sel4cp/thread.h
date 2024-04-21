@@ -78,7 +78,7 @@ sel4cp_thread_set_address_space(sel4cp_thread thread, sel4cp_pd pd)
 }
 
 static sel4cp_errno
-sel4cp_thread_set_priority(sel4cp_thread thread, sel4cp_pd authority, uint64_t priority)
+sel4cp_thread_set_priority(sel4cp_thread thread, sel4cp_thread authority, uint64_t priority)
 {
     seL4_Error err;
 
