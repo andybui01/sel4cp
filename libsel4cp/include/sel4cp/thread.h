@@ -46,7 +46,7 @@ sel4cp_thread_stop(sel4cp_thread thread)
 }
 
 static sel4cp_errno
-sel4cp_thread_set_sched_params(sel4cp_thread thread, uint64_t budget, uint64_t period)
+sel4cp_thread_set_sched_params(sel4cp_thread thread, uint64_t budget, uint64_t period, bool is_periodic)
 {
     seL4_Error err;
     err = seL4_SchedControl_ConfigureFlags(
@@ -56,7 +56,7 @@ sel4cp_thread_set_sched_params(sel4cp_thread thread, uint64_t budget, uint64_t p
         period,
         0,
         0, /** FIXME: what should the badge be set to? for now we don't have timeout endpoints */
-        0
+        (is_periodic) ? seL4_SchedContext_NoFlag : seL4_SchedContext_Sporadic
     );
     seL4_Assert(!err);
 

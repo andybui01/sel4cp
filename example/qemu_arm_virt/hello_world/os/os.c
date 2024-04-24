@@ -26,7 +26,7 @@ sel4cp_msginfo protected(bool is_child, sel4cp_identifier identifier, sel4cp_msg
         uint64_t budget = 1000;
         uint64_t period = 1000;
 
-        sel4cp_thread_set_sched_params(new_thread, budget, period);
+        sel4cp_thread_set_sched_params(new_thread, budget, period, true);
 
         /* In the beginning, only threads that run are the initial PDs themselves,
          * and so PD ID == thread ID for the initial PDs unless we stop their
