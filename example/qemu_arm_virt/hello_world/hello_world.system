@@ -1,4 +1,14 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<!-- 
+     Guide to new parameters:
+     - threads: number of threads the root PD will be able to manage, these include the child PDs
+                so if you have 64 threads and 1 child PD, you have 63 threads to spawn unless you de-alloc
+                the first child PD. Defaults to 0.
+     - root_pp: does this root PD take root PPCs? This mechanism means that the child PD cannot set up PPCs
+                with other PDs. Defaults to false.
+     - timeouts: does this root PD handle timeouts? By default, ALL child PDs and threads of the root PD will
+                 have timeouts enabled if this is set to true. Defaults to false.
+ -->
 
 <system>
 
@@ -23,6 +33,16 @@
     <partition name="world" length="1">
         <protection_domain name="world" priority="254" budget="500" period="1000">
             <program_image path="world/world.elf" />
+        </protection_domain>
+    </partition>
+
+    <!-- Partition to demonstrate timeout faults -->
+    <partition name="timeout" length="1">
+        <protection_domain name="os2" priority="254" root_pp="true" budget="1000" period="1000" timeouts="true">
+            <program_image path="os/os.elf" />
+            <protection_domain name="timeout" priority="200" pd_id="0" budget="500" period="1000">
+                <program_image path="timeout/timeout.elf" />
+            </protection_domain>
         </protection_domain>
     </partition>
 

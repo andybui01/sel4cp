@@ -10,6 +10,7 @@
 const dschedule_t ksDomSchedule[] = {
     { .domain = 0, .length = 3 }, 
     { .domain = 1, .length = 1 },
+    { .domain = 2, .length = 3 },
 };
 
 const word_t ksDomScheduleLength = ARRAY_SIZE(ksDomSchedule);

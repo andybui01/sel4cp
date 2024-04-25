@@ -21,16 +21,8 @@ endif
 IMAGE_FILE = $(BUILD_DIR)/loader.img
 REPORT_FILE = $(BUILD_DIR)/report.txt
 
-# List of partition directories
-# @andyb: just list of elf directories...
-PARTITIONS := hello world os
+PD_LIST := hello world os timeout
 
-# Idea right now is to invoke the sel4cp tool on the root level .system
-# file of the project (hello_world.system in this case). The sel4cp tool
-# will assume that the project elfs are already compiled (done by this Makefile
-# recursively calling make). The system initializer will have to take these elfs,
-# load them onto seL4_TCBs, and assign them to domain. This process is automated by
-# the tool, I guess.
 all: images hello_world.system
 	@echo ===Makefile params===
 	@echo $(BUILD_DIR)
@@ -43,7 +35,8 @@ all: images hello_world.system
 	$(SEL4CP_TOOL) hello_world.system --search-path $(BUILD_DIR) --board $(SEL4CP_BOARD) --config $(SEL4CP_CONFIG) -o $(IMAGE_FILE) -r $(REPORT_FILE)
 
 images:
-	mkdir -p $(addprefix $(BUILD_DIR)/, $(PARTITIONS))
+	mkdir -p $(addprefix $(BUILD_DIR)/, $(PD_LIST))
 	$(MAKE) -C hello
 	$(MAKE) -C world
 	$(MAKE) -C os
+	$(MAKE) -C timeout

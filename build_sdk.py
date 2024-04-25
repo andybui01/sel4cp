@@ -85,7 +85,7 @@ SUPPORTED_CONFIGS = (
             "KernelDebugBuild": True,
             "KernelPrinting": True,
             "KernelVerificationBuild": False,
-            "KernelNumDomains": 2,
+            "KernelNumDomains": 3,
             "KernelDomainSchedule": Path("domain_schedule.c")
         }
     ),

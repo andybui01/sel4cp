@@ -59,3 +59,16 @@ void
 notified(sel4cp_channel ch)
 {
 }
+
+sel4cp_msginfo fault(sel4cp_thread thread, sel4cp_msginfo msginfo, bool is_timeout)
+{
+    if (is_timeout) {
+        sel4cp_dbg_puts("timeout fault detected, do nothing\n");
+    } else {
+        seL4_UserContext regs;
+        seL4_TCB_ReadRegisters(THREAD_TCB(0), false, 0, 1, &regs);
+        sel4cp_thread_restart(0, regs.pc + 4);
+    }
+    
+    return sel4cp_msginfo_new(0, 0);
+}
