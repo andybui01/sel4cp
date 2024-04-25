@@ -25,7 +25,7 @@
 #include <stdint.h>
 #include <stddef.h>
 
-void *dummycrt_memcpy(void *restrict dest, const void *restrict src, size_t n)
+void *memcpy(void *restrict dest, const void *restrict src, size_t n)
 {
 	unsigned char *d = dest;
 	const unsigned char *s = src;
@@ -146,7 +146,7 @@ void *dummycrt_memcpy(void *restrict dest, const void *restrict src, size_t n)
 	return dest;
 }
 
-void *dummycrt_memset(void *dest, int c, size_t n)
+void *memset(void *dest, int c, size_t n)
 {
 	unsigned char *s = dest;
 	size_t k;

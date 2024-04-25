@@ -25,5 +25,5 @@
 
 #include <stddef.h>
 
-void *dummycrt_memcpy(void *restrict dest, const void *restrict src, size_t n);
-void *dummycrt_memset(void *dest, int c, size_t n);
+void *memcpy(void *restrict dest, const void *restrict src, size_t n);
+void *memset(void *dest, int c, size_t n);
