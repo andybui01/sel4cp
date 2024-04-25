@@ -58,6 +58,7 @@ from sel4coreplat.sel4 import (
     Sel4PageDirectoryMap,
     Sel4PageTableMap,
     Sel4PageMap,
+    Sel4TcbSetTimeoutEndpoint,
     Sel4TcbSetSchedParams,
     Sel4TcbSetSpace,
     Sel4TcbSetIpcBuffer,
@@ -1426,7 +1427,6 @@ def build_system(
     badged_fault_ep = system_cap_address_mask | cap_slot
     for idx, pd in enumerate(system.protection_domains, 1):
         is_root = pd.parent is None
-        # TODO: make the root its own fault handler
         if is_root:
             fault_ep_cap = pd_endpoint_objects[pd].cap_addr
             badge = BADGE_TYPE_FAULT | BADGE_FAULT_ROOT # We use an additional bit to determine if the fault is coming from the root PD
@@ -1800,8 +1800,7 @@ def build_system(
     # Initialise the TCBs
     #
     # set scheduling parameters (SetSchedParams)
-    for idx, (pd, schedcontext_obj) in enumerate(zip(system.protection_domains, schedcontext_objects)):
-        # FIXME: We don't use repeat here because in the near future PDs will set the sched params
+    for idx, (pd, schedcontext_obj, tcb_obj) in enumerate(zip(system.protection_domains, schedcontext_objects, tcb_objects)):
         system_invocations.append(
             Sel4SchedControlConfigureFlags(
                 kernel_boot_info.schedcontrol_cap,
@@ -1809,11 +1808,21 @@ def build_system(
                 pd.budget,
                 pd.period,
                 0,
-                0x100 + idx,
-                0
+                0, # wtf is this "badge" even used for? idk, the actual badge is the fault ep
+                0 # @andyb: default to periodic tasks for now until we find a better way to manage this (xml param?).
             )
         )
+
+        # For now only child PDs can have timeout faults, TODO @andyb
+        if pd.parent and pd.parent.handle_timeouts:
+            system_invocations.append(
+                Sel4TcbSetTimeoutEndpoint(
+                    tcb_obj.cap_addr,
+                    badged_fault_ep + idx
+                )
+            )
     
+    # TODO: @andyb merge this up?
     # once we set the sched params for the SC objects, bind them to TCBs.
     for tcb_obj, schedcontext_obj, pd in zip(tcb_objects, schedcontext_objects, system.protection_domains):
         # Monitor no longer receives faults, set fault_ep to 0

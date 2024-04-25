@@ -61,7 +61,7 @@ extern const size_t libsel4cp_max_threads;
 void init(void);
 void notified(sel4cp_channel ch);
 sel4cp_msginfo protected(bool is_child, sel4cp_identifier identifier, sel4cp_msginfo msginfo);
-void fault(sel4cp_channel ch, sel4cp_thread thread, sel4cp_msginfo msginfo);
+sel4cp_msginfo fault(sel4cp_thread thread, sel4cp_msginfo msginfo, bool is_timeout);
 
 extern char sel4cp_name[16];
 /* These next three variables are so our PDs can combine a signal with the next Recv syscall */

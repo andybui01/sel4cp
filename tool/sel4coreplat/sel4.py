@@ -453,6 +453,16 @@ class Sel4UntypedRetype(Sel4Invocation):
 
 
 @dataclass
+class Sel4TcbSetTimeoutEndpoint(Sel4Invocation):
+    _object_type = "TCB"
+    _method_name = "SetTimeoutEndpoint"
+    _extra_caps = ("timeout_fault_ep")
+    label = Sel4Label.TCBSetTimeoutEndpoint
+    tcb: int
+    timeout_fault_ep: int
+
+
+@dataclass
 class Sel4TcbSetSchedParams(Sel4Invocation):
     _object_type = "TCB"
     _method_name = "SetSchedParams"

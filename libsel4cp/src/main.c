@@ -22,9 +22,10 @@ const size_t libsel4cp_max_threads;
 #define BADGE_TYPE_NTFN     0
 
 #define BADGE_TYPE_FAULT    1
+#define     BADGE_FAULT_TIMEOUT_BIT 60
 #define     BADGE_FAULT_ROOT_BIT    61
 #define     BADGE_FAULT_PD_MASK     0xff
-#define     BADGE_FAULT_TID(x)      (((x) >> 8) & 0xff)
+#define     BADGE_FAULT_TID(x)      ((x) & 0xff)
 
 #define BADGE_TYPE_PPC      2
 #define     BADGE_PPC_CHANNEL_MASK  0x3f
@@ -43,8 +44,9 @@ __attribute__((weak)) sel4cp_msginfo protected(bool is_child, sel4cp_identifier 
     return seL4_MessageInfo_new(0, 0, 0, 0);
 }
 
-__attribute__((weak)) void fault(sel4cp_pd pd, sel4cp_thread thread, sel4cp_msginfo msginfo)
+__attribute__((weak)) sel4cp_msginfo fault(sel4cp_thread thread, sel4cp_msginfo msginfo, bool is_timeout)
 {
+    return seL4_MessageInfo_new(0, 0, 0, 0);
 }
 
 extern void init(void);
@@ -76,7 +78,11 @@ handler_loop(void)
                 seL4_Fail("sel4cp rootpd cannot handle its own fault yet");
             }
 
-            fault(badge & BADGE_FAULT_PD_MASK, BADGE_FAULT_TID(badge), tag);
+            seL4_Fault_t f = seL4_getArchFault(tag);
+            bool is_timeout = (seL4_Fault_get_seL4_FaultType(f) == seL4_Fault_Timeout);
+
+            have_reply = true;
+            reply_tag = fault(BADGE_FAULT_TID(badge), tag, is_timeout);
         } else if (GET_BADGE_TYPE(badge) == BADGE_TYPE_PPC) {
             have_reply = true;
             reply_tag = protected(false, badge & BADGE_PPC_CHANNEL_MASK, tag);

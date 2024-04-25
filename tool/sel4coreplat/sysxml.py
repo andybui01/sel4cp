@@ -90,6 +90,7 @@ class ProtectionDomain:
     num_child_pds: int
     pp: bool
     root_ppc: bool # TODO: @andyb tie this into pp somehow, this is wasted IMO
+    timeouts: bool
     passive: bool
     program_image: Path
     maps: Tuple[SysMap, ...]
@@ -110,6 +111,10 @@ class ProtectionDomain:
     @property
     def threads(self) -> bool:
         return self.nthreads
+    
+    @property
+    def handle_timeouts(self) -> bool:
+        return self.timeouts
 
     @property
     def __lt__(self, other):
@@ -290,7 +295,7 @@ def xml2mr(mr_xml: ET.Element, plat_desc: PlatformDescription) -> SysMemoryRegio
 
 
 def xml2pd(pd_xml: ET.Element, is_child: bool=False) -> ProtectionDomain:
-    root_attrs = ("name", "priority", "root_pp", "pp", "budget", "period", "passive", "threads")
+    root_attrs = ("name", "priority", "root_pp", "pp", "budget", "period", "passive", "threads", "timeouts")
     child_attrs = root_attrs + ("pd_id", )
 
     _check_attrs(pd_xml, child_attrs if is_child else root_attrs)
@@ -322,6 +327,8 @@ def xml2pd(pd_xml: ET.Element, is_child: bool=False) -> ProtectionDomain:
 
     pp = str_to_bool(pd_xml.attrib.get("pp", "false"))
     passive = str_to_bool(pd_xml.attrib.get("passive", "false"))
+
+    timeouts = str_to_bool(pd_xml.attrib.get("timeouts", "false"))
 
     maps = []
     irqs = []
@@ -397,6 +404,7 @@ def xml2pd(pd_xml: ET.Element, is_child: bool=False) -> ProtectionDomain:
         len(child_pds),
         pp,
         root_pp,
+        timeouts,
         passive,
         program_image,
         tuple(maps),
