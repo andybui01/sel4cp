@@ -129,6 +129,18 @@ sel4cp_msginfo_get_label(sel4cp_msginfo msginfo)
     return seL4_MessageInfo_get_label(msginfo);
 }
 
+static inline uint64_t
+sel4cp_msginfo_get_length(sel4cp_msginfo msginfo)
+{
+    return seL4_MessageInfo_get_length(msginfo);
+}
+
+static inline uint64_t
+sel4cp_msginfo_set_length(sel4cp_msginfo msginfo, uint64_t length)
+{
+    return seL4_MessageInfo_set_length(msginfo, length);
+}
+
 static void
 sel4cp_mr_set(uint8_t mr, uint64_t value)
 {
