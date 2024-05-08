@@ -135,7 +135,7 @@ sel4cp_msginfo_get_length(sel4cp_msginfo msginfo)
     return seL4_MessageInfo_get_length(msginfo);
 }
 
-static inline uint64_t
+static inline sel4cp_msginfo
 sel4cp_msginfo_set_length(sel4cp_msginfo msginfo, uint64_t length)
 {
     return seL4_MessageInfo_set_length(msginfo, length);
