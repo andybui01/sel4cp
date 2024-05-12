@@ -18,7 +18,7 @@
             budget/period: these default to 1000, but we add them for verbosity.
             threads: this includes the child PD, so in this example the hello PD is already 1 thread.
          -->
-        <protection_domain name="os" priority="254" root_pp="true" budget="1000" period="1000" threads="64">
+        <protection_domain name="os" priority="254" root_pp="true" budget="1000" period="1000" threads="2">
             <program_image path="os/os.elf" />
 
             <!-- User application -->
@@ -30,20 +30,6 @@
         </protection_domain>
     </partition>
 
-    <partition name="world" length="1">
-        <protection_domain name="world" priority="254" budget="500" period="1000">
-            <program_image path="world/world.elf" />
-        </protection_domain>
-    </partition>
 
-    <!-- Partition to demonstrate timeout faults -->
-    <partition name="timeout" length="1">
-        <protection_domain name="os2" priority="254" root_pp="true" budget="1000" period="1000" timeouts="true">
-            <program_image path="os/os.elf" />
-            <protection_domain name="timeout" priority="200" pd_id="0" budget="500" period="1000">
-                <program_image path="timeout/timeout.elf" />
-            </protection_domain>
-        </protection_domain>
-    </partition>
 
 </system>

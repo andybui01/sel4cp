@@ -30,16 +30,15 @@ enum pd_cspace_caps {
     ROOT_PD_EP_CPTR = 1, // Used for syscalls
 
     /* PD caps */
-    REPLY_CPTR = 5,
+    REPLY_CPTR = 4,
     INPUT_CPTR,
+    SELF_CNODE_CPTR,
 
-    /* Not used, however, we need to think about how passive PDs are
-     * gonna get their SCs unbound in the future. Also need to think
-     * about what PDs/threads in our system will be active/passive. */
-    SYSINIT_CPTR,
-    
     /* SchedControl cap to configure SchedContexts */
     SCHEDCONTROL_CPTR,
+
+    /* For unbinding SCs, revisit... */
+    SYSINIT_CPTR,
 
     BASE_OUTPUT_NTFN_CPTR = 10,
     BASE_OUTPUT_EP_CPTR = BASE_OUTPUT_NTFN_CPTR + 64,
@@ -53,15 +52,16 @@ extern const size_t libsel4cp_max_threads;
 #define THREAD_TCB(thread)      (BASE_TCB_CPTR + (thread))
 #define THREAD_SC(thread)       (BASE_TCB_CPTR + libsel4cp_max_threads + (thread))
 #define THREAD_CSPACE(thread)   (BASE_TCB_CPTR + libsel4cp_max_threads * 2 + (thread))
-#define PD_VSPACE(pd)           (BASE_TCB_CPTR + libsel4cp_max_threads * 3 + (pd))
+#define THREAD_REPLY(thread)    (BASE_TCB_CPTR + libsel4cp_max_threads * 3 + (thread))
+#define PD_VSPACE(pd)           (BASE_TCB_CPTR + libsel4cp_max_threads * 4 + (pd))
 
 #define SEL4CP_MAX_CHANNELS 63
 
 /* User provided functions */
 void init(void);
 void notified(sel4cp_channel ch);
-sel4cp_msginfo protected(bool is_child, sel4cp_identifier identifier, sel4cp_msginfo msginfo);
-sel4cp_msginfo fault(sel4cp_thread thread, sel4cp_msginfo msginfo, bool is_timeout);
+bool protected(bool is_child, sel4cp_identifier identifier, sel4cp_msginfo *msginfo);
+bool fault(sel4cp_thread thread, sel4cp_msginfo *msginfo, bool is_timeout);
 
 extern char sel4cp_name[16];
 /* These next three variables are so our PDs can combine a signal with the next Recv syscall */

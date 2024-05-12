@@ -117,3 +117,28 @@ sel4cp_thread_set_entry_attr(sel4cp_thread thread, uintptr_t thread_entry, uintp
 
     return err;
 }
+
+/* WARNING: calling this more than once on a thread _before_
+ * it's been replied to is considered undefined behaviour. */
+static sel4cp_errno
+sel4cp_thread_swap_reply(sel4cp_thread thread)
+{
+    seL4_Error err;
+
+    err = seL4_CNode_Rotate(
+        SELF_CNODE_CPTR,
+        REPLY_CPTR,
+        9,
+        0,
+        SELF_CNODE_CPTR,
+        THREAD_REPLY(thread),
+        9,
+        0,
+        SELF_CNODE_CPTR,
+        REPLY_CPTR,
+        9
+    );
+    seL4_Assert(!err);
+
+    return err;
+}

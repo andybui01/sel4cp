@@ -39,14 +39,16 @@ bool have_signal = false;
 seL4_CPtr signal;
 seL4_MessageInfo_t signal_msg;
 
-__attribute__((weak)) sel4cp_msginfo protected(bool is_child, sel4cp_identifier identifier, sel4cp_msginfo msginfo)
+__attribute__((weak)) bool protected(bool is_child, sel4cp_identifier identifier, sel4cp_msginfo *msginfo)
 {
-    return seL4_MessageInfo_new(0, 0, 0, 0);
+    *msginfo = seL4_MessageInfo_new(0, 0, 0, 0);
+    return 0;
 }
 
-__attribute__((weak)) sel4cp_msginfo fault(sel4cp_thread thread, sel4cp_msginfo msginfo, bool is_timeout)
+__attribute__((weak)) bool fault(sel4cp_thread thread, sel4cp_msginfo *msginfo, bool is_timeout)
 {
-    return seL4_MessageInfo_new(0, 0, 0, 0);
+    *msginfo = seL4_MessageInfo_new(0, 0, 0, 0);
+    return 0;
 }
 
 extern void init(void);
@@ -56,14 +58,13 @@ static void
 handler_loop(void)
 {
     bool have_reply = false;
-    seL4_MessageInfo_t reply_tag;
 
     for (;;) {
         seL4_Word badge;
         seL4_MessageInfo_t tag;
 
         if (have_reply) {
-            tag = seL4_ReplyRecv(INPUT_CPTR, reply_tag, &badge, REPLY_CPTR);
+            tag = seL4_ReplyRecv(INPUT_CPTR, tag, &badge, REPLY_CPTR);
         } else if (have_signal) {
             tag = seL4_NBSendRecv(signal, signal_msg, INPUT_CPTR, &badge, REPLY_CPTR);
         } else {
@@ -81,14 +82,11 @@ handler_loop(void)
             seL4_Fault_t f = seL4_getArchFault(tag);
             bool is_timeout = (seL4_Fault_get_seL4_FaultType(f) == seL4_Fault_Timeout);
 
-            have_reply = true;
-            reply_tag = fault(BADGE_FAULT_TID(badge), tag, is_timeout);
+            have_reply = fault(BADGE_FAULT_TID(badge), &tag, is_timeout);
         } else if (GET_BADGE_TYPE(badge) == BADGE_TYPE_PPC) {
-            have_reply = true;
-            reply_tag = protected(false, badge & BADGE_PPC_CHANNEL_MASK, tag);
+            have_reply = protected(false, badge & BADGE_PPC_CHANNEL_MASK, &tag);
         } else if (GET_BADGE_TYPE(badge) == BADGE_TYPE_ROOT_PPC) {
-            have_reply = true;
-            reply_tag = protected(true, badge & BADGE_ROOT_PPC_TID_MASK, tag);
+            have_reply = protected(true, badge & BADGE_ROOT_PPC_TID_MASK, &tag);
         } else {
             unsigned int idx = 0;
             do  {

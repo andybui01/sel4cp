@@ -5,22 +5,24 @@
 #include <sel4cp/thread.h>
 
 #define SYSCALL_THREAD_CREATE 1
+#define SYSCALL_THREAD_BLOCK 2
+#define SYSCALL_THREAD_RELEASE 3
 
 void
 init(void)
 {
 }
 
-sel4cp_msginfo protected(bool is_child, sel4cp_identifier identifier, sel4cp_msginfo msginfo)
+bool protected(bool is_child, sel4cp_identifier identifier, sel4cp_msginfo *msginfo)
 {
     seL4_Assert(is_child);
 
     sel4cp_thread thread = (sel4cp_thread)identifier;
-    seL4_Assert(thread == 0);
 
-    uint64_t syscall = sel4cp_msginfo_get_label(msginfo);
+    uint64_t syscall = sel4cp_msginfo_get_label(*msginfo);
     switch (syscall) {
     case SYSCALL_THREAD_CREATE:
+        // seL4_DebugSnapshot();
         sel4cp_thread new_thread = 1; // only PD is id 0, so the thread is 1
 
         uint64_t budget = 1000;
@@ -37,7 +39,7 @@ sel4cp_msginfo protected(bool is_child, sel4cp_identifier identifier, sel4cp_msg
 
         sel4cp_thread_set_address_space(new_thread, pd);
 
-        uint64_t priority = 200;
+        uint64_t priority = 199;
 
         sel4cp_thread_set_priority(thread, pd, priority);
 
@@ -48,11 +50,21 @@ sel4cp_msginfo protected(bool is_child, sel4cp_identifier identifier, sel4cp_msg
 
         sel4cp_thread_resume(new_thread);
         break;
+    case SYSCALL_THREAD_BLOCK:
+        sel4cp_dbg_puts("os: thread requested to block\n");
+        sel4cp_thread_swap_reply(0);
+        return false;
+    case SYSCALL_THREAD_RELEASE:
+        sel4cp_dbg_puts("os: release\n");
+        sel4cp_thread_swap_reply(0);
+        sel4cp_dbg_puts("os: swapped replies\n");
+        break;
     default:
         break;
     }
 
-    return sel4cp_msginfo_new(0, 0);
+    *msginfo = sel4cp_msginfo_new(0, 0);
+    return true;
 }
 
 void
@@ -60,7 +72,7 @@ notified(sel4cp_channel ch)
 {
 }
 
-sel4cp_msginfo fault(sel4cp_thread thread, sel4cp_msginfo msginfo, bool is_timeout)
+bool fault(sel4cp_thread thread, sel4cp_msginfo *msginfo, bool is_timeout)
 {
     if (is_timeout) {
         sel4cp_dbg_puts("timeout fault detected, do nothing\n");
@@ -70,5 +82,6 @@ sel4cp_msginfo fault(sel4cp_thread thread, sel4cp_msginfo msginfo, bool is_timeo
         sel4cp_thread_restart(0, regs.pc + 4);
     }
     
-    return sel4cp_msginfo_new(0, 0);
+    *msginfo = sel4cp_msginfo_new(0, 0);
+    return true;
 }

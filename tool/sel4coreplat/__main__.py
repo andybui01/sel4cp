@@ -60,6 +60,7 @@ from sel4coreplat.sel4 import (
     Sel4PageMap,
     Sel4TcbSetTimeoutEndpoint,
     Sel4TcbSetSchedParams,
+    Sel4TcbSetCSpace,
     Sel4TcbSetSpace,
     Sel4TcbSetIpcBuffer,
     Sel4TcbWriteRegisters,
@@ -166,9 +167,10 @@ NULL_CAP = 0 # Not used anywhere, but we intentionally leave this alone
 ROOT_PD_EP_CAP_IDX = 1 # EP to communicate with the parent PD
 VSPACE_CAP_IDX = 2 # Used for cache management, leave unused for now in PDs
 
-REPLY_CAP_IDX = 5
-INPUT_CAP_IDX = 6 # Will be either the notification or endpoint cap
-SCHEDCONTROL_CAP_IDX = 8
+REPLY_CAP_IDX = 4
+INPUT_CAP_IDX = 5 # Will be either the notification or endpoint cap
+SELF_CNODE_CAP_IDX = 6
+SCHEDCONTROL_CAP_IDX = 7
 
 BASE_OUTPUT_NTFN_CAP_IDX = 10
 BASE_OUTPUT_EP_CAP_IDX = BASE_OUTPUT_NTFN_CAP_IDX + 64
@@ -181,23 +183,37 @@ PD_SCHEDCONTEXT_SIZE = (1 << 8) # Maximum number of refills in a single scheduli
 EMPTY_THREAD_CAP_SIZE = 4
 EMPTY_THREAD_CAP_BITS = int(log2(EMPTY_THREAD_CAP_SIZE))
 
-def get_thread_sc_offset(num_threads, thread):
+def get_thread_sc_offset(num_threads, thread) -> int:
     """
     Get offset for a thread's SC in a root PD's CSpace.
     """
-    return BASE_TCB_CAP + num_threads + thread
+    ret = BASE_TCB_CAP + num_threads + thread
+    assert ret < PD_CAP_SIZE
+    return ret
 
 def get_thread_cspace_offset(num_threads, thread):
     """
     Get offset for a thread's CSpace in a root PD's CSpace.
     """
-    return BASE_TCB_CAP + num_threads * 2 + thread
+    ret = BASE_TCB_CAP + num_threads * 2 + thread
+    assert ret < PD_CAP_SIZE
+    return ret
 
-def get_pd_vspace_offset(num_threads, thread):
+def get_thread_reply_offset(num_threads, thread):
+    """
+    Get offset for a Reply capability to a thread in a root PD's CSpace.
+    """
+    ret = BASE_TCB_CAP + num_threads * 3 + thread
+    assert ret < PD_CAP_SIZE
+    return ret
+
+def get_pd_vspace_offset(num_threads, pd):
     """
     Get offset for a thread's VSpace in a root PD's CSpace.
     """
-    return BASE_TCB_CAP + num_threads * 3 + thread
+    ret = BASE_TCB_CAP + num_threads * 4 + pd 
+    assert ret < PD_CAP_SIZE
+    return ret
 
 # Badge types:
 # Bits 63:62
@@ -1300,6 +1316,7 @@ def build_system(
     threads_tcbs = {}
     threads_sc = {}
     threads_cnodes = {}
+    threads_replies = {}
     child_vspaces = {}
     for pd in pds_with_threads:
         # Need to let the thread know at runtime how many threads it's controlling
@@ -1316,6 +1333,10 @@ def build_system(
         # Create spawnable thread CNodes - they are all 4 slots for now.
         threads_cnode_names = [f"Thread CNode: PD={pd.name} #{i}" for i in range(pd.threads)]
         threads_cnodes[pd] = init_system.allocate_objects(SEL4_CNODE_OBJECT, threads_cnode_names, size=EMPTY_THREAD_CAP_SIZE)
+
+        # Create Reply objects for maximum amount of threads we support
+        threads_replies_names = [f"Thread Reply: PD={pd.name} #{i}" for i in range(pd.threads)]
+        threads_replies[pd] = init_system.allocate_objects(SEL4_REPLY_OBJECT, threads_replies_names)
 
         # Collect VSpaces of child PDs
         child_vspaces[pd] = []
@@ -1500,7 +1521,7 @@ def build_system(
     ## Set up root PD CSpaces
     for cnode_obj, pd in zip(cnode_objects, system.protection_domains):
         # Set up child PD caps first (in the root PD CSpace)
-        for maybe_child_pd, maybe_child_tcb, maybe_child_sc, maybe_child_cnode in zip(system.protection_domains, tcb_objects, schedcontext_objects, cnode_objects):
+        for maybe_child_pd, maybe_child_tcb, maybe_child_sc, maybe_child_cnode, maybe_child_reply in zip(system.protection_domains, tcb_objects, schedcontext_objects, cnode_objects, reply_objects):
             if maybe_child_pd.parent is pd:
                 # Mint the root PD's endpoint into the child PD's CSpace if we support root PPCs
                 if pd.accepts_root_ppc:
@@ -1563,6 +1584,18 @@ def build_system(
                             0
                         )
                     )
+
+                    system_invocations.append(
+                        Sel4CnodeCopy(
+                            cnode_obj.cap_addr,
+                            get_thread_reply_offset(pd.threads, maybe_child_pd.pd_id),
+                            PD_CAP_BITS,
+                            root_cnode_cap,
+                            maybe_child_reply.cap_addr,
+                            kernel_config.cap_address_bits,
+                            SEL4_RIGHTS_ALL
+                        )
+                    )
         
         # Set up caps needed to support threading
         if pd in pds_with_threads:
@@ -1585,7 +1618,16 @@ def build_system(
                     SEL4_RIGHTS_ALL,
                     child_pd_badge)
                 invocation.repeat(num_spawnable_threads, cnode=1, badge=1)
+                system_invocations.append(invocation)
 
+                child_tcb_cap = threads_tcbs[pd][pd.num_child_pds].cap_addr
+                invocation = Sel4TcbSetCSpace(
+                    child_tcb_cap,
+                    child_cnode_cap,
+                    kernel_config.cap_address_bits - EMPTY_THREAD_CAP_BITS
+                )
+                invocation.repeat(num_spawnable_threads, tcb=1, cspace_root=1)
+                system_invocations.append(invocation)
 
             ## Mint access to empty threads in the root PD CSpace
 
@@ -1635,6 +1677,36 @@ def build_system(
                             kernel_config.cap_address_bits,
                             SEL4_RIGHTS_ALL,
                             0)
+            invocation.repeat(num_spawnable_threads, dest_index=1, src_obj=1)
+            system_invocations.append(invocation)
+
+
+            ## Copy cap to self CNode
+
+            system_invocations.append(
+                Sel4CnodeCopy(
+                    cnode_obj.cap_addr,
+                    SELF_CNODE_CAP_IDX,
+                    PD_CAP_BITS,
+                    root_cnode_cap,
+                    cnode_obj.cap_addr,
+                    kernel_config.cap_address_bits,
+                    SEL4_RIGHTS_ALL
+                )
+            )
+
+
+            ## Copy access to Reply caps for threads in the root PD CSpace
+
+            reply_cap = threads_replies[pd][pd.num_child_pds].cap_addr
+            invocation = Sel4CnodeCopy(
+                            cnode_obj.cap_addr,
+                            get_thread_reply_offset(pd.threads, pd.num_child_pds),
+                            PD_CAP_BITS,
+                            root_cnode_cap,
+                            reply_cap,
+                            kernel_config.cap_address_bits,
+                            SEL4_RIGHTS_ALL)
             invocation.repeat(num_spawnable_threads, dest_index=1, src_obj=1)
             system_invocations.append(invocation)
 
