@@ -4,6 +4,8 @@
 #include <sel4cp/sel4cp.h>
 #include <sel4cp/thread.h>
 
+#include "util.h"
+
 #define SYSCALL_DUMMY 0
 #define SYSCALL_THREAD_CREATE 1
 #define SYSCALL_THREAD_BLOCK 2
@@ -51,7 +53,7 @@ bool protected(bool is_child, sel4cp_identifier identifier, sel4cp_msginfo *msgi
 
         uint64_t priority = 200;
 
-        sel4cp_thread_set_priority(thread, pd, priority);
+        sel4cp_thread_set_priority(thread, priority);
 
         uintptr_t thread_entry = (uintptr_t)sel4cp_mr_get(0);
         uintptr_t real_entry = (uintptr_t)sel4cp_mr_get(1);

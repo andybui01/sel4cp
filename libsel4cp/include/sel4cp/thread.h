@@ -78,12 +78,12 @@ sel4cp_thread_set_address_space(sel4cp_thread thread, sel4cp_pd pd)
 }
 
 static sel4cp_errno
-sel4cp_thread_set_priority(sel4cp_thread thread, sel4cp_thread authority, uint64_t priority)
+sel4cp_thread_set_priority(sel4cp_thread thread, uint64_t priority)
 {
     seL4_Error err;
 
     /* Use the PD's MCP */
-    err = seL4_TCB_SetPriority(THREAD_TCB(thread), THREAD_TCB(authority), priority);
+    err = seL4_TCB_SetPriority(THREAD_TCB(thread), SELF_TCB_CPTR, priority);
     seL4_Assert(!err);
 
     return err;

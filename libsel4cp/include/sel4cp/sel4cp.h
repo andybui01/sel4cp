@@ -33,6 +33,7 @@ enum pd_cspace_caps {
     REPLY_CPTR = 4,
     INPUT_CPTR,
     SELF_CNODE_CPTR,
+    SELF_TCB_CPTR,
 
     /* SchedControl cap to configure SchedContexts */
     SCHEDCONTROL_CPTR,

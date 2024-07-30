@@ -170,7 +170,8 @@ VSPACE_CAP_IDX = 2 # Used for cache management, leave unused for now in PDs
 REPLY_CAP_IDX = 4
 INPUT_CAP_IDX = 5 # Will be either the notification or endpoint cap
 SELF_CNODE_CAP_IDX = 6
-SCHEDCONTROL_CAP_IDX = 7
+SELF_TCB_CAP_IDX = 7
+SCHEDCONTROL_CAP_IDX = 8
 
 BASE_OUTPUT_NTFN_CAP_IDX = 10
 BASE_OUTPUT_EP_CAP_IDX = BASE_OUTPUT_NTFN_CAP_IDX + 64
@@ -1520,7 +1521,7 @@ def build_system(
             )
 
     ## Set up root PD CSpaces
-    for cnode_obj, pd in zip(cnode_objects, system.protection_domains):
+    for cnode_obj, tcb_obj, pd in zip(cnode_objects, tcb_objects, system.protection_domains):
         # Set up child PD caps first (in the root PD CSpace)
         for maybe_child_pd, maybe_child_tcb, maybe_child_sc, maybe_child_cnode, maybe_child_reply in zip(system.protection_domains, tcb_objects, schedcontext_objects, cnode_objects, reply_objects):
             if maybe_child_pd.parent is pd:
@@ -1691,6 +1692,21 @@ def build_system(
                     PD_CAP_BITS,
                     root_cnode_cap,
                     cnode_obj.cap_addr,
+                    kernel_config.cap_address_bits,
+                    SEL4_RIGHTS_ALL
+                )
+            )
+
+
+            ## Copy cap to root PD's TCB (used for priority setting)
+
+            system_invocations.append(
+                Sel4CnodeCopy(
+                    cnode_obj.cap_addr,
+                    SELF_TCB_CAP_IDX,
+                    PD_CAP_BITS,
+                    root_cnode_cap,
+                    tcb_obj.cap_addr,
                     kernel_config.cap_address_bits,
                     SEL4_RIGHTS_ALL
                 )
