@@ -318,6 +318,7 @@ class Sel4Label():
     TCBSetTimeoutEndpoint,
     TCBSetIPCBuffer,
     TCBSetVSpace,
+    TCBSetCSpace,
     TCBSetSpace,
     TCBSuspend,
     TCBResume,
@@ -372,7 +373,7 @@ class Sel4Label():
     ARMASIDControlMakePool,
     ARMASIDPoolAssign,
     # ARM IRQ
-    ARMIRQIssueIRQHandlerTrigger) = range(1, 57)
+    ARMIRQIssueIRQHandlerTrigger) = range(1, 58)
 
 
 ### Invocations
@@ -489,6 +490,15 @@ class Sel4TcbSetSpace(Sel4Invocation):
     vspace_root: int
     vspace_root_data: int
 
+@dataclass
+class Sel4TcbSetCSpace(Sel4Invocation):
+    _object_type = "TCB"
+    _method_name = "SetCSpace"
+    _extra_caps = ("cspace_root")
+    label = Sel4Label.TCBSetCSpace
+    tcb: int
+    cspace_root: int
+    cspace_root_data: int
 
 @dataclass
 class Sel4TcbSetIpcBuffer(Sel4Invocation):
