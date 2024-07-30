@@ -1125,14 +1125,15 @@ def build_system(
         nstacks = pd.parent.threads if is_child_pd_threaded else 1 # spawnable threads might join us in the VSpace, so if that is a possibility allocate space for them, otherwise its just use, the lonely orphan child pd with no loving parents :(
         for i in range(nstacks):
             base_vaddr, aligned_size = ProtectionDomainVSpace.alloc_thread_stack(i)
+            name = f"{pd.name}: Stack {i}"
             mr = SysMemoryRegion(
-                f"{pd.name}: Stack {i}",
+                name,
                 aligned_size,
                 kernel_config.minimum_page_size,
                 aligned_size // kernel_config.minimum_page_size,
                 None
             )
-            mp = SysMap(tls_mr.name, base_vaddr, perms="rw", cached=True, element=None)
+            mp = SysMap(name, base_vaddr, perms="rw", cached=True, element=None)
             extra_mrs.append(mr)
             pd_extra_maps[pd] += (mp, )
 
