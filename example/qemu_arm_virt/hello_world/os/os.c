@@ -53,7 +53,10 @@ bool protected(bool is_child, sel4cp_identifier identifier, sel4cp_msginfo *msgi
 
         uint64_t priority = 200;
 
-        sel4cp_thread_set_priority(thread, priority);
+        sel4cp_thread_set_priority(new_thread, priority);
+
+        seL4_DebugNameThread(THREAD_TCB(0), "thread 0");
+        seL4_DebugNameThread(THREAD_TCB(1), "thread 1");
 
         uintptr_t thread_entry = (uintptr_t)sel4cp_mr_get(0);
         uintptr_t real_entry = (uintptr_t)sel4cp_mr_get(1);

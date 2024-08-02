@@ -1241,16 +1241,6 @@ def build_system(
     notification_objects_by_pd = dict(zip(system.protection_domains, notification_objects))
     notification_caps = [ntfn.cap_addr for ntfn in notification_objects]
 
-    # PDs with children
-    pd_children = {
-        pd: []
-        for pd in system.protection_domains
-    }
-    for pd in system.protection_domains:
-        for maybe_child_pd in system.protection_domains:
-            if maybe_child_pd.parent is pd:
-                pd_children[pd].append(maybe_child_pd)
-
 
     # Determine number of upper directory / directory / page table objects required
     #
@@ -1962,11 +1952,23 @@ def build_system(
     # the list will be as such: XXXXXXXYYYYZZZZZZZZZZZ where X, Y, Z are PDs belonging to their respective
     # partitions. so here we just repeat for the size of each partition
     start_tcb_of_partition = tcb_objects[0].cap_addr
-    for partition_id, partition in enumerate(system.partitions):
-        invocation = Sel4DomainSet(DOMAIN_CAP_ADDRESS, partition_id, start_tcb_of_partition)
-        invocation.repeat(count=len(partition.protection_domains), tcb=1)
+    for partition in system.partitions:
+        invocation = Sel4DomainSet(DOMAIN_CAP_ADDRESS, partition.id, start_tcb_of_partition)
+        invocation.repeat(count=partition.num_pds, tcb=1)
         system_invocations.append(invocation)
-        start_tcb_of_partition += len(partition.protection_domains)
+        start_tcb_of_partition += partition.num_pds
+    
+    # After setting the Domain of the root PDs, find all child threads and set the Domain accordingly.
+    for pd in pds_with_threads:
+        num_spawnable_threads = pd.threads - pd.num_child_pds
+        child_tcb_cap = threads_tcbs[pd][pd.num_child_pds].cap_addr
+        invocation = Sel4DomainSet(
+            DOMAIN_CAP_ADDRESS,
+            pd.partition,
+            child_tcb_cap
+        )
+        invocation.repeat(count=num_spawnable_threads, tcb=1)
+        system_invocations.append(invocation)
 
     # Resume (start) all the threads
     invocation = Sel4TcbResume(tcb_objects[0].cap_addr)

@@ -82,6 +82,7 @@ class SysSetVar:
 @dataclass(frozen=True, eq=True)
 class ProtectionDomain:
     pd_id: Optional[int]
+    partition: int
     name: str
     priority: int
     budget: int
@@ -121,11 +122,12 @@ class ProtectionDomain:
         return self.pd_id < other.pd_id
 
 
-@dataclass(frozen=True, eq=True)
+@dataclass(frozen=False, eq=True)
 class Partition:
-    name: str
+    id: int
     length: int
     protection_domains: Tuple[ProtectionDomain, ...]
+    num_pds: Optional[int] = 0 # NOT the same as len(protection_domains) (which is just the direct children)
 
 
 @dataclass(frozen=True, eq=True)
@@ -188,12 +190,13 @@ class SystemDescription:
         # FIXME: @andyb: pd names remain GLOBAL, not sure if this is the right approach
         self.pd_by_name: Dict[str, ProtectionDomain] = {}
         self.mr_by_name: Dict[str, SysMemoryRegion] = {}
-        self.pt_by_name: Dict[str, Partition] = {}
+        self.pt_by_id : Dict[int, Partition] = {}
+        self.num_pds_by_pt : Dict[int, int] = {}
 
         for pt in partitions:
-            if pt.name in self.pt_by_name:
-                raise UserError(f"Duplicate partition name '{pt.name}'.")
-            self.pt_by_name[pt.name] = pt
+            if pt.id in self.pt_by_id:
+                raise UserError(f"Duplicate partition id '{pt.id}'.")
+            self.pt_by_id[pt.id] = pt
             
             # @andyb: FIXME: this needs reevaluation, should we cap this here or with channels instead
             # identifying endpoints cost 2 bits in the badge (1 for ppc and 1 for faults)
@@ -206,6 +209,7 @@ class SystemDescription:
             if pd.name in self.pd_by_name:
                 raise UserError(f"Duplicate protection domain name '{pd.name}'.")
             self.pd_by_name[pd.name] = pd
+            self.pt_by_id[pd.partition].num_pds += 1
 
         for mr in memory_regions:
             if mr.name in self.mr_by_name:
@@ -220,21 +224,19 @@ class SystemDescription:
 
         # Ensure no duplicate IRQs
         all_irqs = set()
-        for pt in partitions:
-            for pd in pt.protection_domains:
-                for sysirq in pd.irqs:
-                    if sysirq.irq in all_irqs:
-                        raise UserError(f"duplicate irq: {sysirq.irq} in protection domain: '{pd.name}' @ {pd.element._loc_str}")  # type: ignore
-                    all_irqs.add(sysirq.irq)
+        for pd in self.protection_domains:
+            for sysirq in pd.irqs:
+                if sysirq.irq in all_irqs:
+                    raise UserError(f"duplicate irq: {sysirq.irq} in protection domain: '{pd.name}' @ {pd.element._loc_str}")  # type: ignore
+                all_irqs.add(sysirq.irq)
 
         # Ensure no duplicate channel identifiers
         ch_ids: Dict[str, Set[int]] = {pd_name: set() for pd_name in self.pd_by_name}
-        for pt in partitions:
-            for pd in pt.protection_domains:
-                for sysirq in pd.irqs:
-                    if sysirq.id_ in ch_ids[pd.name]:
-                        raise UserError(f"duplicate channel id: {sysirq.id_} in protection domain: '{pd.name}' @ {pd.element._loc_str}")  # type: ignore
-                    ch_ids[pd.name].add(sysirq.id_)
+        for pd in self.protection_domains:
+            for sysirq in pd.irqs:
+                if sysirq.id_ in ch_ids[pd.name]:
+                    raise UserError(f"duplicate channel id: {sysirq.id_} in protection domain: '{pd.name}' @ {pd.element._loc_str}")  # type: ignore
+                ch_ids[pd.name].add(sysirq.id_)
 
         for cc in self.channels:
             if cc.id_a in ch_ids[cc.pd_a]:
@@ -249,16 +251,15 @@ class SystemDescription:
             ch_ids[cc.pd_b].add(cc.id_b)
 
         # Ensure that all maps are correct
-        for pt in partitions:
-            for pd in pt.protection_domains:
-                for map in pd.maps:
-                    if map.mr not in self.mr_by_name:
-                        raise UserError(f"Invalid memory region name '{map.mr}' on '{map.element.tag}' @ {map.element._loc_str}")  # type: ignore
+        for pd in self.protection_domains:
+            for map in pd.maps:
+                if map.mr not in self.mr_by_name:
+                    raise UserError(f"Invalid memory region name '{map.mr}' on '{map.element.tag}' @ {map.element._loc_str}")  # type: ignore
 
-                    mr = self.mr_by_name[map.mr]
-                    extra = map.vaddr % mr.page_size
-                    if extra != 0:
-                        raise UserError(f"Invalid vaddr alignment on '{map.element.tag}' @ {map.element._loc_str}")  # type: ignore
+                mr = self.mr_by_name[map.mr]
+                extra = map.vaddr % mr.page_size
+                if extra != 0:
+                    raise UserError(f"Invalid vaddr alignment on '{map.element.tag}' @ {map.element._loc_str}")  # type: ignore
                     
 
         # Note: Overlapping memory is checked in the build.
@@ -266,11 +267,10 @@ class SystemDescription:
         # Ensure all memory regions are used at least once. This only generates
         # warnings, not errors
         check_mrs = set(self.mr_by_name.keys())
-        for pt in partitions:
-            for pd in pt.protection_domains:
-                for m in pd.maps:
-                    if m.mr in check_mrs:
-                        check_mrs.remove(m.mr)
+        for pd in self.protection_domains:
+            for m in pd.maps:
+                if m.mr in check_mrs:
+                    check_mrs.remove(m.mr)
 
         for mr_ in check_mrs:
             print(f"WARNING: Unused memory region: {mr_}")
@@ -294,7 +294,7 @@ def xml2mr(mr_xml: ET.Element, plat_desc: PlatformDescription) -> SysMemoryRegio
     return SysMemoryRegion(name, size, page_size, page_count, paddr)
 
 
-def xml2pd(pd_xml: ET.Element, is_child: bool=False) -> ProtectionDomain:
+def xml2pd(pd_xml: ET.Element, partition: int, is_child: bool=False) -> ProtectionDomain:
     root_attrs = ("name", "priority", "root_pp", "pp", "budget", "period", "passive", "threads", "timeouts")
     child_attrs = root_attrs + ("pd_id", )
 
@@ -371,7 +371,7 @@ def xml2pd(pd_xml: ET.Element, is_child: bool=False) -> ProtectionDomain:
                 region_paddr = checked_lookup(child, "region_paddr")
                 setvars.append(SysSetVar(symbol, region_paddr=region_paddr))
             elif child.tag == "protection_domain":
-                child_pds.append(xml2pd(child, is_child=True))
+                child_pds.append(xml2pd(child, partition, is_child=True))
             else:
                 raise UserError(f"Invalid XML element '{child.tag}': {child._loc_str}")  # type: ignore
         except ValueError as e:
@@ -396,6 +396,7 @@ def xml2pd(pd_xml: ET.Element, is_child: bool=False) -> ProtectionDomain:
 
     return ProtectionDomain(
         pd_id,
+        partition,
         name,
         priority,
         budget,
@@ -443,8 +444,8 @@ def xml2channel(ch_xml: ET.Element) -> Channel:
 
 def xml2partition(pt_xml: ET.Element) -> Partition:
 
-    _check_attrs(pt_xml, ("name", "length"))
-    name = checked_lookup(pt_xml, "name")
+    _check_attrs(pt_xml, ("name", "length", "id"))
+    id = int(checked_lookup(pt_xml, "id"))
     length = int(checked_lookup(pt_xml, "length"))
     protection_domains = []
 
@@ -453,18 +454,18 @@ def xml2partition(pt_xml: ET.Element) -> Partition:
         raise ValueError("length must be between 1 and 254")
     
     if len(pt_xml) == 0:
-        raise UserError(f"Error: Partition '{name}' has no protection domains")
+        raise UserError(f"Error: Partition {id} has no protection domains")
     
     for child in pt_xml:
         try:
             if child.tag == "protection_domain":
-                protection_domains.append(xml2pd(child))
+                protection_domains.append(xml2pd(child, id))
             else:
                 raise UserError(f"Invalid XML element '{child.tag}': {child._loc_str}")  # type: ignore
         except ValueError as e:
             raise UserError(f"Error: {e} on element '{child.tag}': {child._loc_str}")  # type: ignore
 
-    return Partition(name, length, tuple(protection_domains))
+    return Partition(id, length, tuple(protection_domains))
 
 
 def _check_no_text(el: ET.Element) -> None:
@@ -497,7 +498,7 @@ def xml2system(filename: Path, plat_desc: PlatformDescription) -> SystemDescript
             if child.tag == "memory_region":
                 memory_regions.append(xml2mr(child, plat_desc))
             elif child.tag == "protection_domain":
-                protection_domains.append(xml2pd(child))
+                protection_domains.append(xml2pd(child, 0))
             elif child.tag == "channel":
                 channels.append(xml2channel(child))
             elif child.tag == "partition":
@@ -514,7 +515,7 @@ def xml2system(filename: Path, plat_desc: PlatformDescription) -> SystemDescript
             raise UserError(f"Error: Missing required attribute '{e.attribute_name}' on element '{e.element.tag}': {e.element._loc_str}")  # type: ignore
         
     if len(partitions) == 0 and len(protection_domains) > 0:
-        partitions.append(Partition("default", 1, tuple(protection_domains)))
+        partitions.append(Partition(0, 1, tuple(protection_domains)))
     elif len(partitions) == 0 and len(protection_domains) == 0:
         raise UserError("Error: Specify at least one partition or protection_domain")
     
