@@ -61,6 +61,7 @@ from sel4coreplat.sel4 import (
     Sel4TcbSetTimeoutEndpoint,
     Sel4TcbSetSchedParams,
     Sel4TcbSetCSpace,
+    Sel4TcbSetFaultHandler,
     Sel4TcbSetSpace,
     Sel4TcbSetIpcBuffer,
     Sel4TcbWriteRegisters,
@@ -1460,10 +1461,9 @@ def build_system(
             SEL4_RIGHTS_ALL,
             badge
         )
+        cap_address_names[system_cap_address_mask | cap_slot] = cap_address_names[fault_ep_cap] + f" (badge=0x{badge:x})"
         system_invocations.append(invocation)
         cap_slot += 1
-
-    final_cap_slot = cap_slot
 
     ## Minting in the address space
     for pd, notification_obj, cnode_obj in zip(system.protection_domains, notification_objects, cnode_objects):
@@ -1591,13 +1591,12 @@ def build_system(
         
         # Set up caps needed to support threading
         if pd in pds_with_threads:
+            root_pd_ep = pd_endpoint_objects.get(pd)
             num_spawnable_threads = pd.threads - pd.num_child_pds
 
             ## Mint a endpoint for empty threads to make root PPCs, if supported, into the thread CSpace.
-            ## TODO: mint a fault EP for each thread too
 
             if pd.accepts_root_ppc:
-                root_pd_ep = pd_endpoint_objects.get(pd)
                 child_cnode_cap = threads_cnodes[pd][pd.num_child_pds].cap_addr
                 child_pd_badge = BADGE_TYPE_ROOT_PPC | (pd.num_child_pds) # remember that first few thread IDs are actually just PD IDs!
                 invocation = Sel4CnodeMint(
@@ -1620,10 +1619,33 @@ def build_system(
                 )
                 invocation.repeat(num_spawnable_threads, tcb=1, cspace_root=1)
                 system_invocations.append(invocation)
+            
+            ## Mint fault endpoints
+            thread_fault_badge = BADGE_TYPE_FAULT | (pd.num_child_pds)
+            invocation = Sel4CnodeMint(
+                system_cnode_cap,
+                cap_slot,
+                system_cnode_bits,
+                root_cnode_cap,
+                root_pd_ep.cap_addr,
+                kernel_config.cap_address_bits,
+                SEL4_RIGHTS_ALL,
+                thread_fault_badge
+            )
+            invocation.repeat(num_spawnable_threads, dest_index=1, badge=1)
+            system_invocations.append(invocation)
+
+            tcb_cap = threads_tcbs[pd][pd.num_child_pds].cap_addr
+            invocation = Sel4TcbSetFaultHandler(tcb_cap, system_cap_address_mask | cap_slot)
+            invocation.repeat(num_spawnable_threads, tcb=1, fault_ep=1)
+            system_invocations.append(invocation)
+
+            for i in range(num_spawnable_threads):
+                cap_address_names[system_cap_address_mask | cap_slot] = cap_address_names[root_pd_ep.cap_addr] + f" (badge=0x{thread_fault_badge:x})"
+            cap_slot += num_spawnable_threads
 
             ## Mint access to empty threads in the root PD CSpace
 
-            tcb_cap = threads_tcbs[pd][pd.num_child_pds].cap_addr
             invocation = Sel4CnodeMint(
                             cnode_obj.cap_addr,
                             BASE_TCB_CAP + pd.num_child_pds,
@@ -1748,6 +1770,8 @@ def build_system(
                         SEL4_RIGHTS_ALL,
                         0)
                 )
+    
+    final_cap_slot = cap_slot
 
 
     for cc in system.channels:
