@@ -37,6 +37,9 @@ bool protected(bool is_child, sel4cp_identifier identifier, sel4cp_msginfo *msgi
         // seL4_DebugSnapshot();
         sel4cp_thread new_thread = 1; // only PD is id 0, so the thread is 1
 
+        uintptr_t thread_entry = (uintptr_t)sel4cp_mr_get(0);
+        uintptr_t real_entry = (uintptr_t)sel4cp_mr_get(1);
+
         uint64_t budget = 1000;
         uint64_t period = 1000;
 
@@ -57,9 +60,6 @@ bool protected(bool is_child, sel4cp_identifier identifier, sel4cp_msginfo *msgi
 
         seL4_DebugNameThread(THREAD_TCB(0), "thread 0");
         seL4_DebugNameThread(THREAD_TCB(1), "thread 1");
-
-        uintptr_t thread_entry = (uintptr_t)sel4cp_mr_get(0);
-        uintptr_t real_entry = (uintptr_t)sel4cp_mr_get(1);
 
         sel4cp_thread_set_entry_attr(new_thread, thread_entry, real_entry);
 
@@ -222,6 +222,9 @@ static char *data_abort_dfsc_to_string(uintptr_t dfsc)
 
 bool fault(sel4cp_thread thread, sel4cp_msginfo *msginfo, bool is_timeout)
 {
+    puts("\nFAULT! Thread: ");
+    puthex32(thread);
+    puts("\n");
     if (is_timeout) {
         sel4cp_dbg_puts("timeout fault detected, do nothing\n");
         *msginfo = sel4cp_msginfo_new(0, 0);
@@ -237,7 +240,6 @@ bool fault(sel4cp_thread thread, sel4cp_msginfo *msginfo, bool is_timeout)
 
         seL4_DebugDumpScheduler();
         // FIXME: Would be good to print the whole register set
-        puts("\nFAULT!\n");
         puts("Registers: \n");
         puts("pc : ");
         puthex64(regs.pc);
