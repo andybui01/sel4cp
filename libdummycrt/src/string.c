@@ -24,6 +24,7 @@
 #include <libdummycrt/string.h>
 #include <stdint.h>
 #include <stddef.h>
+#include <limits.h>
 
 void *memcpy(void *restrict dest, const void *restrict src, size_t n)
 {
@@ -232,4 +233,36 @@ void *memset(void *dest, int c, size_t n)
 #endif
 
 	return dest;
+}
+
+#define ALIGN (sizeof(size_t)-1)
+#define ONES ((size_t)-1/UCHAR_MAX)
+#define HIGHS (ONES * (UCHAR_MAX/2+1))
+#define HASZERO(x) (((x)-ONES) & ~(x) & HIGHS)
+
+/* TODO: fix libc and move everything into its own proper library.
+ * ADVICE: delete all code in this file and just restart, use musl's string.h :) */
+static char *__stpncpy(char *restrict d, const char *restrict s, size_t n)
+{
+	size_t *wd;
+	const size_t *ws;
+
+	if (((uintptr_t)s & ALIGN) == ((uintptr_t)d & ALIGN)) {
+		for (; ((uintptr_t)s & ALIGN) && n && (*d=*s); n--, s++, d++);
+		if (!n || !*s) goto tail;
+		wd=(void *)d; ws=(const void *)s;
+		for (; n>=sizeof(size_t) && !HASZERO(*ws);
+		       n-=sizeof(size_t), ws++, wd++) *wd = *ws;
+		d=(void *)wd; s=(const void *)ws;
+	}
+	for (; n && (*d=*s); n--, s++, d++);
+tail:
+	memset(d, 0, n);
+	return d;
+}
+
+char *strncpy(char *restrict d, const char *restrict s, size_t n)
+{
+	__stpncpy(d, s, n);
+	return d;
 }
